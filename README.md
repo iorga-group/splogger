@@ -12,6 +12,8 @@ And SPLogger:
 - Don't need CLR (Amazon RDS compatible)
 - 100% T-SQL code
 - Logs are stored in a dedicated database table shareable across DATABASES
+ 
+
 ## How does it work ?
 To be able to survive to a rollback event raised during SQL execution, SPLogger use **XML datastructure** to store runtime events/trace logged by the developer.  
 During execution of the SQL batch/SP, each *Log Event* is added, on the flow, as a **XML Node** to the *Logger Object* which can be save into the dedicated table *splogger.LogHistory* at the end of the surrounding call and after the **COMMIT** or the **ROLLBACK**.    
