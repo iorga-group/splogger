@@ -15,7 +15,7 @@
         You should have received a copy of the GNU General Public License
         along with this program.  If not, see <http://www.gnu.org/licenses/>.
         
-        Contact Email : splogger@iorga.com
+        Contact Email : splogger@iorga.com        
 */
 
 if exists (select 1
@@ -139,6 +139,13 @@ go
 
 if exists (select 1
           from sysobjects
+          where  id = object_id('splogger.SetExpectedMaxDuration')
+          and type in ('P','PC'))
+   drop procedure splogger.SetExpectedMaxDuration
+go
+
+if exists (select 1
+          from sysobjects
           where  id = object_id('splogger.StartLog')
           and type in ('IF', 'FN', 'TF'))
    drop function splogger.StartLog
@@ -185,6 +192,7 @@ create table splogger.LogHistory (
    DurationInSeconds    integer              not null,
    EventsMaxLevel       smallint             not null,
    LogDetail            xml                  not null,
+   WarnExpectedMaxDuration bit                  not null default 0,
    VerifiedOn           smalldatetime        null,
    constraint PK_LOGHISTORY primary key (Id)
 )
@@ -900,6 +908,42 @@ END
 go
 
 
+CREATE FUNCTION splogger.NewEvent_Warning ( @pCode INT, @pText NVARCHAR(MAX))
+RETURNS XML
+BEGIN
+    /**
+        SPLogger - A logging and tracing system for MSSQL stored procedures that survive to a rollback event
+        Copyright (C) 2015  Iorga
+        
+        This program is free software: you can redistribute it and/or modify
+        it under the terms of the GNU Lesser General Public License as published by
+        the Free Software Foundation, either version 3 of the License, or
+        (at your option) any later version.
+        
+        This program is distributed in the hope that it will be useful,
+        but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        GNU General Public License for more details.
+        
+        You should have received a copy of the GNU General Public License
+        along with this program.  If not, see <http://www.gnu.org/licenses/>.
+        
+        Contact Email : splogger@iorga.com
+        
+        =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        
+        Initialize a "WARNING" level log event.
+        
+        @param   pCode   INT   Event's code
+        @param   pText   NVARCHAR(MAX)   Event description
+        
+        @see   _NewEvent
+     */    
+    RETURN splogger._NewEvent ( 2, @pCode, @pText)
+END
+go
+
+
 CREATE PROCEDURE splogger.FinishLog @pLogger XML, @pParentLogger XML = NULL OUT, @pLoggerLevelMinToSave INT = 0
 AS
 BEGIN
@@ -935,20 +979,38 @@ BEGIN
      */
     SET NOCOUNT ON
     
-    BEGIN TRY
-        DECLARE @levelMax INT = @pLogger.value('(/*[1]/@level_max)', 'INT')        
-    
+    BEGIN TRY          
+        -- Checks for maximum expected duration  
+        DECLARE @WarnExpectedMaxDuration BIT = 0
+        DECLARE @startTime DATETIME = @pLogger.value('(/*[1]/@start_time)', 'DATETIME') 
+        DECLARE @endDate DATETIME = GETUTCDATE()
+        DECLARE @expectedMaxDuration INT = @pLogger.value('(/*[1]/@expected_max_duration)', 'INT') 
+        DECLARE @duration INT = DATEDIFF( MS, @startTime, @endDate)
+        
+        IF @expectedMaxDuration > 0 AND @duration > @expectedMaxDuration
+        BEGIN
+            -- Duration above the expected maximum duration for this log (task)
+            -- Adding an INFO event
+            SET @WarnExpectedMaxDuration = 1
+    		DECLARE @logEvent XML = splogger.NewEvent_Warning ( 53001, 'This logger/task has run longer than the maximumu expected duration (in milliseconds).')
+                EXEC splogger.AddParam @logEvent OUT, '@expected duration', @expectedMaxDuration
+    			EXEC splogger.AddParam @logEvent OUT, '@run duration', @duration
+    		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+        END
+        ELSE 
+        BEGIN
+            SET @pLogger.modify('delete /*[1]/@expected_max_duration')
+        END
+        
         -- Checks if logging is disabled (interactive call - SSMS)
+        DECLARE @levelMax INT = @pLogger.value('(/*[1]/@level_max)', 'INT')                    
         DECLARE @logLevelFilter INT = splogger.GetRunningLevel(@pLogger)         
         IF @logLevelFilter = -1
             RETURN @levelMax
-    
-        DECLARE @startTime DATETIME = @pLogger.value('(/*[1]/@start_time)', 'DATETIME') 
-        DECLARE @endDate DATETIME = GETUTCDATE()
-        
+               
         -- Computing task duration
         DECLARE @durationAsText VARCHAR(20)
-        DECLARE @duration INT = DATEDIFF( MINUTE, @startTime, @endDate)
+        SET @duration = DATEDIFF( MINUTE, @startTime, @endDate)
         
         IF @duration > 29 
         BEGIN
@@ -997,8 +1059,8 @@ BEGIN
             -- Database insertion
             DECLARE @taskKey NVARCHAR(128) = @pLogger.value('(/*[1]/@task_key)', 'NVARCHAR(128)')         
             
-            INSERT INTO splogger.LogHistory( DbName, TaskKey, StartedAt, EndedAt, DurationInSeconds, EventsMaxLevel, LogDetail )
-                VALUES ( DB_NAME(), @taskKey, @startTime, @endDate, DATEDIFF( SECOND, @startTime, @endDate), @levelMax, @pLogger )
+            INSERT INTO splogger.LogHistory( DbName, TaskKey, StartedAt, EndedAt, DurationInSeconds, EventsMaxLevel, LogDetail, WarnExpectedMaxDuration )
+                VALUES ( DB_NAME(), @taskKey, @startTime, @endDate, DATEDIFF( SECOND, @startTime, @endDate), @levelMax, @pLogger, @WarnExpectedMaxDuration )
             
             RETURN @@IDENTITY        
         END
@@ -1212,8 +1274,8 @@ END
 go
 
 
-CREATE FUNCTION splogger.NewEvent_Warning ( @pCode INT, @pText NVARCHAR(MAX))
-RETURNS XML
+CREATE PROCEDURE splogger.SetExpectedMaxDuration @pLogger XML OUT, @pExpectedMaxDuration INT, @pDurationUnit NVARCHAR(3) = 'SEC' 
+AS
 BEGIN
     /**
         SPLogger - A logging and tracing system for MSSQL stored procedures that survive to a rollback event
@@ -1236,14 +1298,29 @@ BEGIN
         
         =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
         
-        Initialize a "WARNING" level log event.
+        Define the expected max duration in seconds for the logger to achieve.
         
-        @param   pCode   INT   Event's code
-        @param   pText   NVARCHAR(MAX)   Event description
+        @param   pLogger   XML   Logger for which we want to set the expected max duration.
+        @param   pExpectedMaxDuration  INT (default to -1)   Maximum expected duration. A duration above this value adds a WARNING. A value of -1 disables it.
+        @param   pDurationUnit   NVARCHAR(3) (default to 'SEC'=seconds)   duration in which unity in MS=milliseconds, SEC=seconds or MIN=minutes ?
         
-        @see   _NewEvent
-     */    
-    RETURN splogger._NewEvent ( 2, @pCode, @pText)
+        @see   FinishLog
+     */
+    SET NOCOUNT ON
+    
+    IF @pLogger IS NULL
+        RETURN 
+    
+    IF UPPER(@pDurationUnit) <> 'MS'
+    BEGIN
+        IF UPPER(@pDurationUnit) = 'SEC'
+            SET @pExpectedMaxDuration = @pExpectedMaxDuration * 1000
+        ELSE IF UPPER(@pDurationUnit) = 'MIN'
+            SET @pExpectedMaxDuration = @pExpectedMaxDuration * 60000
+    END
+    
+    -- Memorize duration in milliseconds
+    SET @pLogger.modify('replace value of (/*[1]/@expected_max_duration) with (sql:variable("@pExpectedMaxDuration"))')                     
 END
 go
 
@@ -1286,11 +1363,11 @@ BEGIN
     
     IF @pParentLogger IS NULL
     BEGIN
-        SET @log = '<log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+CONVERT(VARCHAR, @pLogLevel)+'" level_max="-1"><title><![CDATA['+@pTitle+']]></title></log>'
+        SET @log = '<log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+CONVERT(VARCHAR, @pLogLevel)+'" expected_max_duration="-1" level_max="-1"><title><![CDATA['+@pTitle+']]></title></log>'
     END
     ELSE
     BEGIN 
-        SET @log = '<sub-log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+@pParentLogger.value('(/*[1]/@level)', 'VARCHAR(2)')+'" level_max="-1"><title><![CDATA['+@pTitle+']]></title></sub-log>'
+        SET @log = '<sub-log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+@pParentLogger.value('(/*[1]/@level)', 'VARCHAR(2)')+'" expected_max_duration="-1" level_max="-1"><title><![CDATA['+@pTitle+']]></title></sub-log>'
     END
     
     RETURN @log

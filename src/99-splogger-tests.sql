@@ -99,6 +99,7 @@ BEGIN
 
 		-- Creating a main Logger
 		DECLARE @pLogger XML = splogger.StartLog ( null, 'SPLogger Main', @pLogLevel, 'Testing SPLogger functionnalities')
+			EXEC splogger.SetExpectedMaxDuration @pLogger OUT, 350, 'MS'
 			EXEC splogger.AddParam @pLogger OUT, 'SPID', @@SPID
 			EXEC splogger.AddParam_DateTime @pLogger OUT, 'Now', @now
 			EXEC splogger.AddParam_GUID @pLogger OUT, 'GUID', @guid
