@@ -16,8 +16,11 @@ And SPLogger:
 
 ## How does it work ?
 To be able to survive to a rollback event raised during SQL execution, SPLogger use **XML datastructure** to store runtime events/trace logged by the developer.  
+
 During execution of the SQL batch/SP, each *Log Event* is added, on the flow, as a **XML Node** to the *Logger Object* which can be save into the dedicated table *splogger.LogHistory* at the end of the surrounding call and after the **COMMIT** or the **ROLLBACK**.    
+
 The *Logger Object* (XML variable) is passed as **OUTPUT** (byRef) parameter to the SPLogger stored procedures, so it can be filled by sub-routines. 
+
 The logs are saved inside an XML column in a dedicated table. That allows XSLT transformations for User friendly presentation. 
 
 ## Which are the SPLogger's functionalities
@@ -32,13 +35,28 @@ The logs are saved inside an XML column in a dedicated table. That allows XSLT t
  - Support `nb` attribute on WARNING or ERROR `event` to count how many times **in a row** the same `event` has been logged (perhaps due to a `event` logged in a loop). This is used to limit the `log`size.
  - `sql-trace` allows to memorize inside the `log`the result set of a **SELECT** statement or the content of a table
  - `sql-trace` supports the temporary tables created inside the SP. It's awesome to debug from SSMS :-)
+ - An *expected maximum duration* can be set for a logger, and a warning will be automatically inserted by `FinishLog` if the running duration is over the expected one
+ - Support logging for multiple databases in the same **SPLogger database** throught the use of synonyms to the SPLogger objects
 
 ***
 # How to install SPLogger ?
 
-**COMING SOON...**
+SPLogger can be installed in its own database or in an user database without any risk cause it uses its own SQL schema `splogger`.  
+
+If you decide to use a **dedicated database** (SPLogger for example), you have to create it before continuing and you shoud be sure to select this database before running the following SQL scripts.  
+
+If you decide to use an **existing database** (in case of RDS for example), you shoud be sure to select this database before running the following SQL scripts.  
+
+So, installing SPLogger is as simple as execute the following SQL scripts in order :
+  - Create `splogger` SQL schema [10-splogger-create-schema](./src/10-splogger-create-schema.sql)
+  - Create all SPLogger SQL objects [20-splogger-create-dbobjects](./src/20-splogger-create-dbobjects.sql)
+  - if needed, Create SPLogger Role and set grants to this role [30-splogger-role-grants](./src/30-splogger-role-grants.sql)
+  - if needed (use of a dedicated DB for SPLogger), Create synonyms to SPLogger objects to a user defined schema on its own DB [40-splogger-create-synonyms](./src/40-splogger-create-synonyms.sql)
+  - Run the SPLogger's tests [99-splogger-tests](./src/99-splogger-tests.sql)
 
 # How to use SPLogger ?
+
+For now, you can have a look at [SPLogger Tests](./src/99-splogger-tests.sql)
 
 **COMING SOON...**
 
