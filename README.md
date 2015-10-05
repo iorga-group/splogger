@@ -60,3 +60,7 @@ For now, you can have a look at [SPLogger Tests](./src/99-splogger-tests.sql)
 
 **COMING SOON...**
 
+# SPLogger Database model
+
+![SPLogger Database Model](./splogger-physical-data-model.png "SPLogger Database Model")
+
