@@ -172,8 +172,7 @@ BEGIN
 		END
 
 		-- SQL Exception management
-		EXEC splogger.SPTest_SQLException @pLogger OUT, 254, 3
-		EXEC splogger.SPTest_SQLException @pLogger OUT, 58, 0
+		EXEC splogger.SPTest_SQLException @pLogger OUT, 254, 3		
 
 		COMMIT
 	END TRY
@@ -197,6 +196,9 @@ GO
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 EXEC splogger.SPTest @pLogLevel = 0
+GO
+
+EXEC splogger.SPTest_SQLException NULL, 58, 0
 GO
 
 --=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
