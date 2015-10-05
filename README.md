@@ -56,9 +56,15 @@ So, installing SPLogger is as simple as execute the following SQL scripts in ord
 
 # How to use SPLogger ?
 
-For now, you can have a look at [SPLogger Tests](./src/99-splogger-tests.sql)
+Using SPLogger is simple...  
 
-**COMING SOON...**
+Just create a logger (@see [toplevel-stored-procedure-template](./templates/toplevel-stored-procedure-template.sql)) and pass it as OUTPUT parameter to all called sub-procedures. It will be filled with `Events` and finally saved in the database.
+
+It's possible to prepare stored procedure to be used as a main or a sub-routine by creating inside it a logger attached to the parent logger (@see [stored-procedure-template](./templates/stored-procedure-template.sql))
+
+Finally, you can pass the logger as output parameter to any stored procedure and use it to log events without creating a sub-logger (good for small procedure).
+
+To get an running sample, you can have a look at [SPLogger Tests](./src/99-splogger-tests.sql)
 
 # SPLogger Database model
 
