@@ -1,6 +1,9 @@
-A logging and tracing system for SQL stored procedures that survive to a rollback event.  
+A logging and tracing system for SQL stored procedures that survive to a rollback event.
+
 ![SPLogger](./splogger-banner.png "SPLogger")
 # What is SPLogger ?
+
+*SPLogger Release 1.1*
 
 First of all, SPLogger is a set of procedures and functions used to logging Microsoft SQLServer stored procedures execution...  
 ...that survive to a **rollback** event (if well used).  
@@ -13,7 +16,6 @@ And SPLogger:
 - 100% T-SQL code
 - Logs are stored in a dedicated database table shareable across DATABASES
  
-
 ## How does it work ?
 To be able to survive to a rollback event raised during SQL execution, SPLogger use **XML datastructure** to store runtime events/trace logged by the developer.  
 
@@ -37,10 +39,11 @@ The logs are saved inside an XML column in a dedicated table. That allows XSLT t
  - `sql-trace` supports the temporary tables created inside the SP. It's awesome to debug from SSMS :-)
  - An *expected maximum duration* can be set for a logger, and a warning will be automatically inserted by `FinishLog` if the running duration is over the expected one
  - Support logging for multiple databases in the same **SPLogger database** throught the use of synonyms to the SPLogger objects
+ - New 1.1 - Adding `timed-group` which allows developer to group `event`, `sub-logger`, `trace` into areas with a summary duration information. `timed-group` support nesting automatically.
 
-***
 # How to install SPLogger ?
 
+## From scratch
 SPLogger can be installed in its own database or in an user database without any risk cause it uses its own SQL schema `splogger`.  
 
 If you decide to use a **dedicated database** (SPLogger for example), you have to create it before continuing and you shoud be sure to select this database before running the following SQL scripts.  
@@ -53,6 +56,16 @@ So, installing SPLogger is as simple as execute the following SQL scripts in ord
   - if needed, Create SPLogger Role and set grants to this role [30-splogger-role-grants](./src/30-splogger-role-grants.sql)
   - if needed (use of a dedicated DB for SPLogger), Create synonyms to SPLogger objects to a user defined schema on its own DB [40-splogger-create-synonyms](./src/40-splogger-create-synonyms.sql)
   - Run the SPLogger's tests [99-splogger-tests](./src/99-splogger-tests.sql)
+
+## Upgrading
+
+You can check your current release by looking at the **latest synonym** created for the `LogHistory` table (ex: `History 1.0`). Information: initial release (tag #v1.0) didn't create the synonym.
+
+Upgrade scripts can be found into the `upgrade` folder. You **SHOULD* execute, in order, all scripts from your release to the latest one.
+
+*In order* means, for exemple, to upgrade from 1.0 to 1.3, execute scripts from upgrade/1.0-1.1 followed by scripts from upgrade/1.1-1.2 and finally scripts from upgrade/1.2-1.3.
+
+**Upgrade scripts are cumulative and non destructive for the content of the `LogHistory` table.**
 
 # How to use SPLogger ?
 
