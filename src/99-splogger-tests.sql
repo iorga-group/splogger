@@ -98,44 +98,53 @@ BEGIN
 		BEGIN TRANSACTION
 
 		-- Creating a main Logger
-		DECLARE @pLogger XML = splogger.StartLog ( null, 'SPLogger Main', @pLogLevel, 'Testing SPLogger functionnalities')
-			EXEC splogger.SetExpectedMaxDuration @pLogger OUT, 350, 'MS'
-			EXEC splogger.AddParam @pLogger OUT, 'SPID', @@SPID
-			EXEC splogger.AddParam_DateTime @pLogger OUT, 'Now', @now
-			EXEC splogger.AddParam_GUID @pLogger OUT, 'GUID', @guid
+		DECLARE @logger XML = splogger.StartLog ( null, 'SPLogger Main', @pLogLevel, 'Testing SPLogger functionnalities')
+			EXEC splogger.SetExpectedMaxDuration @logger OUT, 350, 'MS'
+			EXEC splogger.AddParam @logger OUT, 'SPID', @@SPID
+			EXEC splogger.AddParam_DateTime @logger OUT, 'Now', @now
+			EXEC splogger.AddParam_GUID @logger OUT, 'GUID', @guid
 	
+		EXEC splogger.StartTGroup @logger OUT, 'Group 1'
+
 		-- Adding an INFO event
 		SET @logEvent = splogger.NewEvent_Info ( 'This is an information event with param')
 			EXEC splogger.AddParam @logEvent OUT, '@nbRows', 52
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
 	
 		-- Adding a WARNING event
 		SET @logEvent = splogger.NewEvent_Warning ( 251, 'Warning 251 raised three times in a row (have a look at "nb" attribute)')
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
 	
 		SET @logEvent = splogger.NewEvent_Warning ( 251, 'Same warning again (code=251)')
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
 
 		SET @logEvent = splogger.NewEvent_Warning ( 251, 'and again (code=251)')
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
 
 		SET @logEvent = splogger.NewEvent_Warning ( 138, 'Warning 138')
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
 
 		SET @logEvent = splogger.NewEvent_Warning ( 251, 'and again Warning 251. BUT NOT IN A ROW (have a look at "nb" attribute)')
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
 
-		EXEC splogger.AddDebugTrace @pLogger OUT, 'What is the Now value', null, @now
+		EXEC splogger.AddDebugTrace @logger OUT, 'What is the Now value', null, @now
 	
 		-- Adding a INFO event with XML as data param
 		SET @logEvent = splogger.NewEvent_Info ( 'This is an information event with XML data as param')
 			EXEC splogger.AddParam_XmlAsCDATA @logEvent OUT, '@vehicules', @xmldata
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
 
 		-- Adding a INFO event with XML as data param
 		SET @logEvent = splogger.NewEvent_Info ( 'This is an information event with XML data as nested XML elements')
 			EXEC splogger.AddParam_Xml @logEvent OUT, '@vehicules', @xmldata
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent
+		EXEC splogger.AddEvent @logger OUT, @logEvent
+
+		EXEC splogger.FinishTGroup @logger OUT	-- Ending Group 1
+
+		SET @logEvent = splogger.NewEvent_Info ( 'This is an information event outside of a timed-group')
+		EXEC splogger.AddEvent @logger OUT, @logEvent
+
+		EXEC splogger.StartTGroup @logger OUT, 'Group 2'
 
 		--
 		-- Adding a WARNING SQL Query event 
@@ -156,36 +165,46 @@ BEGIN
 			('Sao Paulo', 'Brazil'),
 			('Pekin', 'China')
 
+		EXEC splogger.StartTGroup @logger OUT, 'Group 2.1'
+
 		-- Personnalised query
-		EXEC splogger.AddSQLSelectTrace @pLogger OUT, 'SELECT * FROM #spLoggerTest ORDER BY Country'
+		EXEC splogger.AddSQLSelectTrace @logger OUT, 'SELECT * FROM #spLoggerTest ORDER BY Country'
 
 		-- Simple table query
-		EXEC splogger.AddSQLTableTrace @pLogger OUT, '#spLoggerTest', 2, 3
+		EXEC splogger.AddSQLTableTrace @logger OUT, '#spLoggerTest', 2, 3
+
+		EXEC splogger.FinishTGroup @logger OUT	-- Ending Group 2.1
+
+		EXEC splogger.StartTGroup @logger OUT, 'Group 2.2'
 
 		-- Calling sub procedure with their own logger. Creates sub-loggers
 		DECLARE @i INT = 1
 		WHILE @i < 4
 		BEGIN
 			SET @now = GETDATE()
-			EXEC splogger.SPTest_SubLogger @pLogger OUT, @i, @now, 3		-- This specified log level (3) will be override by main logger log level
+			EXEC splogger.SPTest_SubLogger @logger OUT, @i, @now, 3		-- This specified log level (3) will be override by main logger log level
 			SET @i = @i + 1
 		END
 
+		EXEC splogger.FinishTGroup @logger OUT  -- Ending Group 2.2
+
+		EXEC splogger.FinishTGroup @logger OUT  -- Ending Group 2
+
 		-- SQL Exception management
-		EXEC splogger.SPTest_SQLException @pLogger OUT, 254, 3		
+		EXEC splogger.SPTest_SQLException @logger OUT, 254, 3		
 
 		COMMIT
 	END TRY
 	BEGIN CATCH
 		SET @logEvent = splogger.NewEvent_For_SqlError ( 3 )	
-		EXEC splogger.AddEvent @pLogger OUT, @logEvent	
+		EXEC splogger.AddEvent @logger OUT, @logEvent	
 		ROLLBACK
 	END CATCH
 
-	EXEC splogger.AddDebugTrace @pLogger OUT, 'What is the XML value', null, null, @xmldata
+	EXEC splogger.AddDebugTrace @logger OUT, 'What is the XML value', null, null, @xmldata
 
 	-- Cloture du logger principal après fin de la transaction principale			
-	EXEC splogger.FinishLog @pLogger
+	EXEC splogger.FinishLog @logger
 
 	-- Affichage
 	SELECT * from splogger.LogHistory

@@ -53,4 +53,7 @@ CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[AddSQLSelectTrace] FOR [<SPL
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[AddSQLTableTrace] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[AddSQLTableTrace]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[AddDebugTrace] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[AddDebugTrace]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[SetExpectedMaxDuration] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[SetExpectedMaxDuration]
+
+CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[StartTGroup] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[StartTGroup]
+CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[FinishTGroup] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[FinishTGroup]
 GO

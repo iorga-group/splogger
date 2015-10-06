@@ -15,7 +15,7 @@
     You should have received a copy of the GNU General Public License
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
-	Contact Email : fprevost@iorga.com
+	Contact Email : splogger@iorga.com
  */
 
 if exists (select 1
@@ -51,6 +51,13 @@ if exists (select 1
           where  id = object_id('splogger.AddSQLSelectTrace')
           and type in ('P','PC'))
    drop procedure splogger.AddSQLSelectTrace
+go
+
+if exists (select 1
+          from sysobjects
+          where  id = object_id('splogger.StartTGroup')
+          and type in ('P','PC'))
+   drop procedure splogger.StartTGroup
 go
 
 if exists (select 1
@@ -93,6 +100,13 @@ if exists (select 1
           where  id = object_id('splogger.AddParam_Xml')
           and type in ('P','PC'))
    drop procedure splogger.AddParam_Xml
+go
+
+if exists (select 1
+          from sysobjects
+          where  id = object_id('splogger.FinishTGroup')
+          and type in ('P','PC'))
+   drop procedure splogger.FinishTGroup
 go
 
 if exists (select 1
@@ -316,9 +330,8 @@ BEGIN
         =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
         
         Add the specified Event to the target Logger if the Event log level is above or equal to the Logger log level.
-        Ajoute un "Event" au Logger passe en parametre (OUT)
-        Lors de l'ajout de l'event, le niveau maximum atteint est, au besoin, mis a jour sur le Logger.
-        De plus, en cas de plusieurs envois consecutifs du meme "Event " (meme code <> 0), on incremente le compteur sur la 1ere occurence.
+        The maximum level reached by the Logger is automatically updated if needed
+        When adding WARNING /ERROR Event, all consecutive Events with the same "code" increment the occurence counter instead of insert new Event element.
         
         @param   pLogger   XML OUT   Targeted logger. Be carefull this parameter SHOULD be passed as OUTPUT
         @param   pEvent   XML   Event to add to logger if level condition is reached
@@ -353,7 +366,7 @@ BEGIN
         -- A logger is specified
         BEGIN TRY   
             -- Checks if logger is desactivated (log level = "-1")         
-            DECLARE @logLevelFilter int = @pLogger.value('(/*[1]/@level)', 'INT') 
+            DECLARE @logLevelFilter int = splogger.GetRunningLevel(@pLogger)
             IF @logLevelFilter = -1
                 RETURN 
         
@@ -388,8 +401,17 @@ BEGIN
                 END
             END
        
-            -- Adding the new Event
-    		SET @pLogger.modify('insert (sql:variable("@pEvent")) into (/*[1])')        
+            -- Auto-detection system for timed-group support - Remove for ended log
+            IF @pLogger.exist('(/*[1]/@container)') = 1
+            BEGIN
+                -- Adding the new Event inside the timed-group
+    		    SET @pLogger.modify('insert (sql:variable("@pEvent")) into (((//*[@container])[last()])[1])')        
+            END
+            ELSE
+            BEGIN
+                -- Adding the new Event at the end of the Logger children
+    		    SET @pLogger.modify('insert (sql:variable("@pEvent")) into (/*[1])')        
+            END
     	END TRY
     	BEGIN CATCH
     		-- Ignore, but warn in interactive mode (SSMS)
@@ -1033,7 +1055,13 @@ BEGIN
 			END
         END
             
-        SET @pLogger.modify('replace value of (/*[1]/@duration) with (sql:variable("@durationAsText"))')                
+        SET @pLogger.modify('replace value of (/*[1]/@duration) with (sql:variable("@durationAsText"))')   
+        
+        -- Auto-detection system for timed-group support - Remove for ended log
+        IF @pLogger.exist('(/*[1]/@container)') = 1
+        BEGIN
+            SET @pLogger.modify('delete /*[1]/@container')
+        END             
         
         -- Log finalisation
         IF @pParentLogger IS NULL
@@ -1078,15 +1106,27 @@ BEGIN
             -- Checks if the current logger log level is the same as its parent one
             IF @logLevelFilter = @containerLevel
                 SET @pLogger.modify('delete /*[1]/@level')
-        
+            
+            -- In case of a sub-logger, no need for sub-start time
+            SET @pLogger.modify('delete /*[1]/@start_time')    
+            
             -- In case of a sub-logger, 
             -- if the log level reached by it, is above the minimal log level to save,
             -- just the sub-logger element is inserted. All its details are removed.
             IF @levelMax < @pLoggerLevelMinToSave
                 SET @pLogger.modify('delete /*[1]/event[*]')
-            
-            -- Sub-logger adding to parent logger
-    		SET @pParentLogger.modify('insert (sql:variable("@pLogger")) into (/*[1])')
+                        
+            -- Auto-detection system for timed-group support - Remove for ended log
+            IF @pParentLogger.exist('(/*[1]/@container)') = 1
+            BEGIN
+                -- Adding the new Event inside the timed-group
+    		    SET @pParentLogger.modify('insert (sql:variable("@pLogger")) into (((//*[@container])[last()])[1])')        
+            END
+            ELSE
+            BEGIN
+                -- Sub-logger adding to parent logger
+    		    SET @pParentLogger.modify('insert (sql:variable("@pLogger")) into (/*[1])')
+            END
             
             -- Returns the maximum log level reached by this sub-logger.
             -- This value can be used by the caller SP to do something...
@@ -1100,6 +1140,76 @@ BEGIN
         DECLARE @errMsg NVARCHAR(2048) = ERROR_MESSAGE()
         RAISERROR ( N'%s - splogger.FinishLog - Error #%d : %s', 10, 0, @ts, @errNum, @errMsg ) WITH NOWAIT        
     END CATCH        
+END
+go
+
+
+CREATE PROCEDURE splogger.FinishTGroup @pLogger XML OUT
+AS
+BEGIN
+    /**
+        SPLogger - A logging and tracing system for MSSQL stored procedures that survive to a rollback event
+        Copyright (C) 2015  Iorga
+        
+        This program is free software: you can redistribute it and/or modify
+        it under the terms of the GNU Lesser General Public License as published by
+        the Free Software Foundation, either version 3 of the License, or
+        (at your option) any later version.
+        
+        This program is distributed in the hope that it will be useful,
+        but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        GNU General Public License for more details.
+        
+        You should have received a copy of the GNU General Public License
+        along with this program.  If not, see <http://www.gnu.org/licenses/>.
+        
+        Contact Email : splogger@iorga.com
+        
+        =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        
+        End the closest active timed-group. 
+        
+        @param   pLogger   XML OUT   Targeted logger. Be carefull this parameter SHOULD be passed as OUTPUT
+        
+        @see StartTGroup
+     */
+    SET NOCOUNT ON
+    
+    DECLARE @startTime DATETIME = @pLogger.value('(//timed-group[@container])[last()]/@start_ts', 'DATETIME') 
+    DECLARE @endDate DATETIME = GETUTCDATE()
+    
+    -- Computing task duration
+    DECLARE @durationAsText VARCHAR(20)
+    DECLARE @duration INT = DATEDIFF( MINUTE, @startTime, @endDate)
+    
+    IF @duration > 29 
+    BEGIN
+        -- If more than 29 minutes, using minutes as duration's unit
+        SET @durationAsText = CONVERT(VARCHAR(12), @duration)+'mins'
+    END
+    ELSE
+    BEGIN
+		SET @duration = DATEDIFF( SECOND, @startTime, @endDate)
+        IF @duration > 29	
+		BEGIN
+            -- If more than 29 seconds, using seconds as duration's unit
+			SET @durationAsText = CONVERT(VARCHAR(12), @duration)+'s'
+		END
+		ELSE
+		BEGIN
+            -- Else using microseconds as duration's unit
+			SET @duration = DATEDIFF( ms, @startTime, @endDate)
+			SET @durationAsText = CONVERT(VARCHAR(12), @duration)+'ms'
+		END
+    END
+    
+    -- Writing duration attribute  
+    SET @pLogger.modify('replace value of (((//timed-group[@container])[last()])[1]/@duration) with (sql:variable("@durationAsText"))')      
+       
+    -- Removing control attributes
+    SET @pLogger.modify('delete ((//timed-group[@container])[last()])[1]/@start_ts')         
+    SET @pLogger.modify('delete ((//timed-group[@container])[last()])[1]/@container')         
 END
 go
 
@@ -1363,14 +1473,63 @@ BEGIN
     
     IF @pParentLogger IS NULL
     BEGIN
-        SET @log = '<log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+CONVERT(VARCHAR, @pLogLevel)+'" expected_max_duration="-1" level_max="-1"><title><![CDATA['+@pTitle+']]></title></log>'
+        SET @log = '<log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+CONVERT(VARCHAR, @pLogLevel)+'" expected_max_duration="-1" level_max="-1"><description><![CDATA['+@pTitle+']]></description></log>'
     END
     ELSE
     BEGIN 
-        SET @log = '<sub-log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+@pParentLogger.value('(/*[1]/@level)', 'VARCHAR(2)')+'" expected_max_duration="-1" level_max="-1"><title><![CDATA['+@pTitle+']]></title></sub-log>'
+        SET @log = '<sub-log task_key="'+@pTaskKey+'" start_time="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="-1" level="'+@pParentLogger.value('(/*[1]/@level)', 'VARCHAR(2)')+'" expected_max_duration="-1" level_max="-1"><description><![CDATA['+@pTitle+']]></description></sub-log>'
     END
     
     RETURN @log
 END
 go
 
+
+CREATE PROCEDURE splogger.StartTGroup @pLogger XML OUT, @pDescription NVARCHAR(255)
+AS
+BEGIN
+    /**
+        SPLogger - A logging and tracing system for MSSQL stored procedures that survive to a rollback event
+        Copyright (C) 2015  Iorga
+        
+        This program is free software: you can redistribute it and/or modify
+        it under the terms of the GNU Lesser General Public License as published by
+        the Free Software Foundation, either version 3 of the License, or
+        (at your option) any later version.
+        
+        This program is distributed in the hope that it will be useful,
+        but WITHOUT ANY WARRANTY; without even the implied warranty of
+        MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        GNU General Public License for more details.
+        
+        You should have received a copy of the GNU General Public License
+        along with this program.  If not, see <http://www.gnu.org/licenses/>.
+        
+        Contact Email : splogger@iorga.com
+        
+        =-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+        
+        Start a new timed-group for the Logger.
+        Timed-group can be nested inside another timed-group. 
+        The nesting of timed-group is automatically done when calling this procedure when a not finish one exists.
+        
+        @param   pLogger   XML OUT   Targeted logger. Be carefull this parameter SHOULD be passed as OUTPUT
+        @param   pDescription   NVARCHAR(255)   Timed-group description
+     */
+    SET NOCOUNT ON
+    
+    -- Adding the new timed-group to the Logger
+    DECLARE @tGroup XML = '<timed-group start_ts="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="?" container="1"><description><![CDATA['+@pDescription+']]></description></timed-group>'        
+    EXEC splogger.AddEvent @pLogger OUT, @tGroup         
+    
+    -- Auto-detection system for timed-group support
+    IF @pLogger.exist('(/*[1]/@container)') = 0
+    BEGIN
+        SET @pLogger.modify('insert attribute container {"on"} into (/*[1])')
+    END
+END
+go
+
+-- Creating tagging synonym
+CREATE synonym [splogger].[LogHistory 1.1] for [splogger].[LogHistory]
+GO
