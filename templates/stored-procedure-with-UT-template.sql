@@ -9,9 +9,10 @@ IF EXISTS (SELECT 1 FROM sysobjects WHERE id = object_id('<ProcedureName, sysnam
 GO
 
 CREATE PROCEDURE [<SchemaName, sysname, dbo>].[<ProcedureName, sysname,>] 
+		@pParentLogger XML = NULL OUT,		-- SPLogger: Parent logger by REF if called by another SP. Or running Unit Test if any
 		-- Your parameters
 		<@Param1, sysname, @p1> <Datatype_For_Param1, , int> = <Default_Value_For_Param1, , 0>,		
-		@pLogLevel INT = 2	-- SPLogger: Warn level by default
+		@pLogLevel INT = 2					-- SPLogger: Warn level by default if not called by another SP
 AS
 BEGIN
 	/**		
@@ -21,11 +22,15 @@ BEGIN
 	 */
 	SET NOCOUNT ON
 	DECLARE @retVal INT 
-	DECLARE @tranCount INT = @@TRANCOUNT
+	DECLARE @tranCount INT
+
+	-- In case of running UT, check if this SP is launched if a first level transaction.
+	-- If it's not the case (@@ROWCOUNT <> 1) then raise an error.
+	EXEC @tranCount = sploggerUT.CheckUnitTestInTransaction @pParentLogger OUT
 
 	-- Initialisation du Log
     DECLARE @logEvent XML
-	DECLARE @logger XML = splogger.StartLog( null, '<ProcedureName, sysname,>', @pLogLevel, '<Description,,>')
+	DECLARE @logger XML = splogger.StartLog( @pParentLogger, '<ProcedureName, sysname,>', @pLogLevel, '<Description,,>')
 		-- If needed: EXEC splogger.SetExpectedMaxDuration @logger OUT, -1
 		EXEC splogger.AddParam @logger OUT, '@tranCount', @tranCount
 		EXEC splogger.AddParam @logger OUT, '<@Param1, sysname, @p1>', <@Param1, sysname, @p1>
@@ -44,14 +49,23 @@ BEGIN
 
 		-- Exit. SHOULD BE used in GOTO in place of any RETURN
 		label_exit:   
+
+		-- UT mode ? 
+		IF splogger.GetRunningLevel (@logger) = -8	
+		BEGIN
+			-- For visibility, you can save many values for UT here
+			-- or anywhere else between Start and End
+
+		END
    
 		IF @trancount = 0
 			COMMIT       
-            
-		-- Close logging session. Save log in database
-		-- and return the Log Id or "- Id" if level_max > 2
-        EXEC @retVal = splogger.FinishLog @logger
-		RETURN @retVal
+         
+		-- Close logging session. 
+		-- Save log in database if not a sub-logger or UT Mode.
+		-- So return the Log Id if not in UT, level_max if in UT		
+        EXEC @retVal = splogger.FinishLog @logger, @pParentLogger OUT
+		RETURN @retVal    
 	END TRY
 	BEGIN CATCH
 		-- In case of any exception
@@ -78,12 +92,12 @@ BEGIN
 		END
 		       
         -- Now the Rollback is done, 
-		-- so finish the logger and save it to database 
+		-- so finish the logger and save it to database (if not UT mode)
 		-- before rethrow/raiserror
-        EXEC @retVal = splogger.FinishLog @logger
+        EXEC @retVal = splogger.FinishLog @logger, @pParentLogger OUT
         
-		IF @trancount > 0
-			-- A transaction was initied outside
+        IF @trancount > 0 AND @pParentLogger IS NULL
+			-- A transaction was initied outside an not in UT mode
 			-- so rethrow/raise
 			-- 2012 and above rethrow the exception
 			-- Under SQLServer 2008/2008R2 you should use RAISERROR()

@@ -21,6 +21,7 @@ BEGIN
 		Description:	<Description,,>
 	 */
 	SET NOCOUNT ON
+	DECLARE @retVal INT
 	DECLARE @tranCount INT = @@TRANCOUNT
 
 	-- Initialisation du Log
@@ -34,7 +35,7 @@ BEGIN
 		IF @trancount = 0
 			BEGIN TRANSACTION
 		ELSE
-			SAVE TRANSACTION <Save_Point_Name, VARCHAR, SavePoint_000>     
+			SAVE TRANSACTION "<Save_Point_Name, VARCHAR, SavePoint_000>"     
 		
 		--=-=-=-=-= Start	
 
@@ -48,30 +49,29 @@ BEGIN
 		IF @trancount = 0
 			COMMIT       
             
-		-- Close logging session. Save log in database 
-        EXEC splogger.FinishLog @logger, @pParentLogger OUT
+		-- Close sub-logger
+		-- if @pParentLogger IS NULL then (return the Log Id or "- Id" if level_max > 2)
+		-- else return the level_max reached to caller SP for check		 
+        EXEC @retVal = splogger.FinishLog @logger, @pParentLogger OUT
+		RETURN @retVal
 	END TRY
 	BEGIN CATCH
 		-- In case of any exception
 		-- Auto log all exception data as an Error		
 		DECLARE @xstate INT = XACT_STATE()                        		
 
+		-- So log the error and rollback 
+		SET @logEvent = splogger.NewEvent_For_SqlError(3)	
+			EXEC splogger.AddEvent @logger OUT, @logEvent
+
         IF @xstate = 1
         BEGIN
 			IF @trancount = 0       
-			BEGIN
 				-- The transaction was initiated here and it's valid. 
-				-- So log the error and rollback 
-				SET @logEvent = splogger.NewEvent_For_SqlError(3)	
-				EXEC splogger.AddEvent @logger OUT, @logEvent
 				ROLLBACK
-			END
 			ELSE 
-			BEGIN 
 				-- The transaction wasn't initialised here.
-				-- So just rollback to the save point and rethrow it
-				ROLLBACK TRANSACTION <Save_Point_Name, VARCHAR, SavePoint_000>
-			END
+				ROLLBACK TRANSACTION "<Save_Point_Name, VARCHAR, SavePoint_000>"
         END
         ELSE IF @xstate = -1     
 		BEGIN
@@ -81,16 +81,24 @@ BEGIN
 		END
 		       
         -- Now the Rollback is done, 
-		-- so finish the logger (and save it to database if not a sub-logger)
-        EXEC splogger.FinishLog @logger, @pParentLogger OUT
+		-- so finish the logger and save it to database if not sub-log
+		-- before rethrow/raiserror
+        EXEC @retVal = splogger.FinishLog @logger, @pParentLogger OUT
         
-        -- 2012 and above rethrow the exception
-		-- Under SQLServer 2008/2008R2 you should use RAISERROR()
-		;THROW  
+        IF @trancount > 0 AND @pParentLogger IS NULL
+			-- A transaction was initied outside an not in UT mode
+			-- so rethrow/raise
+			-- 2012 and above rethrow the exception
+			-- Under SQLServer 2008/2008R2 you should use RAISERROR()
+			;THROW  
+		ELSE
+			-- No transaction was initied outside
+			-- so return "- id" meaning error 
+			-- and allow loading of log detail 
+			RETURN @retVal
         		
 	END CATCH    
 END
 GO
 
-EXEC  [<SchemaName, sysname, dbo>].[<ProcedureName, sysname,>]
-GO 
+ 
