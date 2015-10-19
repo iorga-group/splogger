@@ -1,6 +1,6 @@
 A **logging and tracing system** for SQL stored procedures that survive to a rollback event...
 
-But also *SPLogger-UT** a **Unit Test System** based on It.
+But also **SPLogger-UT** a **Unit Test System** based on It.
 
 ![SPLogger](./splogger-banner.png "SPLogger")
 # What is SPLogger ?
