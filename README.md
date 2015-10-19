@@ -1,5 +1,6 @@
 A **logging and tracing system** for SQL stored procedures that survive to a rollback event...
-And also a **Unit Test system** based on It.
+
+But also a **Unit Test System** based on It.
 
 ![SPLogger](./splogger-banner.png "SPLogger")
 # What is SPLogger ?
@@ -17,7 +18,7 @@ And SPLogger:
 - 100% T-SQL code
 - Logs are stored in a dedicated database table shareable across user's databases
  
-And since 1.3, SPLogger include **SPLoggerUT** dedicated to **Unit Testing** of stored procedure based on SPLogger. 
+And since release 1.3, SPLogger include **SPLoggerUT** dedicated to **Unit Testing** of stored procedure based on SPLogger. 
  
 ## How does it work ?
 To be able to survive to a rollback event raised during SQL execution, SPLogger use **XML datastructure** to store runtime events/trace logged by the developer.  
@@ -42,7 +43,7 @@ The logs are saved inside an XML column in a dedicated table. That allows XSLT t
  - `sql-trace` supports the temporary tables created inside the SP. It's awesome to debug from SSMS :-)
  - An *expected maximum duration* can be set for a logger, and a warning will be automatically inserted by `FinishLog` if the running duration is over the expected one
  - Support logging for multiple databases in the same **SPLogger database** throught the use of synonyms to the SPLogger objects
- - New 1.1 - Adding `timed-group` which allows developer to group `event`, `sub-logger`, `trace` into areas with a summary duration information. `timed-group` support nesting automatically.
+ - Adding `timed-group` which allows developer to group `event`, `sub-logger`, `trace` into areas with a summary duration information. `timed-group` support nesting automatically.
  - New 1.3 - Unit Testing system for SP supporting `AssertTrue`, `AssertFalse`, `AssertEquals`, `AssertNotEquals` and `Formulas` using `Values` save during Unit test execution.
 
 # How to install SPLogger ?
@@ -66,7 +67,7 @@ If you want to use Unit Test system, you should also execute the following SQL s
   - if needed, set grants to this role [30-sploggerUT-role-grants](./src/sploggerUT/30-sploggerUT-role-grants.sql)
   - if needed (use of a dedicated DB for SPLogger), create synonyms to SPLoggerUT objects to a user defined schema on its own DB [40-sploggerUT-create-synonyms](./src/sploggerUT/40-sploggerUT-create-synonyms.sql)
 
-  - Run the SPLogger's tests [99-splogger-tests](./src/99-splogger-tests.sql)
+  - Run the SPLogger's tests [99-splogger-and-sploggerUT-tests](./src/99-splogger-and-sploggerUT-tests.sql)
 
 ## Upgrading
 
@@ -88,11 +89,11 @@ It's possible to prepare stored procedure to be used as a main or a sub-routine 
 
 Finally, you can pass the logger as output parameter to any stored procedure and use it to log events without creating a sub-logger (good for small procedure).
 
-To get an running sample, you can have a look at [SPLogger Tests](./src/99-splogger-tests.sql)
+To get an running sample, you can have a look at [SPLogger and SPLogger-UT Tests](./src/99-splogger-and-sploggerUT-tests.sql)
 
 # How to use SPLogger-UT ?
 
-If you plan to use Unit Test on your SP, you should prefer to use templates [toplevel-stored-procedure-with-UT-template](./templates/toplevel-stored-procedure-with-UT-template.sql) and [stored-procedure-with-UT-template](./templates/stored-procedure-with-UT-template.sql)
+If you plan to use Unit Testing on your Stored Procedures, you can use templates (@see  [toplevel-stored-procedure-with-UT-template](./templates/toplevel-stored-procedure-with-UT-template.sql) and [stored-procedure-with-UT-template](./templates/stored-procedure-with-UT-template.sql))
 as model.
 
 Inside of your SPs, you can use dedicated methods of schema `sploggerUT` like `sploggerUT.SetDateTimeValue`, `sploggerUT.SetNVarcharValue`, `sploggerUT.SetIntValue` or `sploggerUT.SetSqlSelectValue` to memorise some values that you will be able to check after execution.
