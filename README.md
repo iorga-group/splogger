@@ -1,6 +1,6 @@
 A **logging and tracing system** for SQL stored procedures that survive to a rollback event...
 
-But also a **Unit Test System** based on It.
+But also *SPLogger-UT** a **Unit Test System** based on It.
 
 ![SPLogger](./splogger-banner.png "SPLogger")
 # What is SPLogger ?
@@ -92,6 +92,8 @@ Finally, you can pass the logger as output parameter to any stored procedure and
 To get an running sample, you can have a look at [SPLogger and SPLogger-UT Tests](./src/99-splogger-and-sploggerUT-tests.sql)
 
 # How to use SPLogger-UT ?
+
+![SPLogger-UT](./sploggerUT-banner.png "SPLogger-UT")
 
 If you plan to use Unit Testing on your Stored Procedures, you can use templates (@see  [toplevel-stored-procedure-with-UT-template](./templates/toplevel-stored-procedure-with-UT-template.sql) and [stored-procedure-with-UT-template](./templates/stored-procedure-with-UT-template.sql))
 as model.
