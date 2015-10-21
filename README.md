@@ -5,7 +5,7 @@ But also *SPLogger-UT** a **Unit Test System** based on It.
 ![SPLogger](./splogger-banner.png "SPLogger")
 # What is SPLogger ?
 
-*SPLogger Release 1.3*
+*SPLogger Release 1.4*
 
 First of all, SPLogger is a set of procedures and functions used to logging Microsoft SQLServer stored procedures execution...  
 ...that survive to a **rollback** event (if well used).  
@@ -44,7 +44,7 @@ The logs are saved inside an XML column in a dedicated table. That allows XSLT t
  - An *expected maximum duration* can be set for a logger, and a warning will be automatically inserted by `FinishLog` if the running duration is over the expected one
  - Support logging for multiple databases in the same **SPLogger database** throught the use of synonyms to the SPLogger objects
  - Adding `timed-group` which allows developer to group `event`, `sub-logger`, `trace` into areas with a summary duration information. `timed-group` support nesting automatically.
- - New 1.3 - Unit Testing system for SP supporting `AssertTrue`, `AssertFalse`, `AssertEquals`, `AssertNotEquals` and `Formulas` using `Values` save during Unit test execution.
+ - Unit Testing system for SP supporting `AssertTrue`, `AssertFalse`, `AssertEquals`, `AssertNotEquals` and `Formulas` using `Values` save during Unit test execution.
 
 # How to install SPLogger ?
 

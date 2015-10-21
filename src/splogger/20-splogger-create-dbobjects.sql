@@ -16,7 +16,15 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 	Contact Email : fprevost@iorga.com
+ 
+ 	=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+	Warning ! Before running this script you SHOULD verify that you have select the SPLogger database
+
  */
+
+USE [SPLogger>]
+GO
  
 if exists (select 1
           from sysobjects
@@ -167,9 +175,9 @@ go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('splogger._NewEvent')
+          where  id = object_id('_NewEvent')
           and type in ('IF', 'FN', 'TF'))
-   drop function splogger._NewEvent
+   drop function _NewEvent
 go
 
 if exists (select 1
@@ -281,14 +289,18 @@ BEGIN
         @param   pName   NVARCHAR(128)  parameter's name
         @param   pValue   NVARCHAR(MAX)   parameter's value
         
-        The pValue is stored as a <![CDATA[]]> element.
-        
-        Any error raise during param insertion is ignored (severity 10) but immediatly logged to the console.
+        Note: 
+           - NULL values are saved as "{null}" in assertion result.
+           - The pValue is stored as a <![CDATA[]]> element.
+           - Any error raise during param insertion is ignored (severity 10) but immediatly logged to the console.
      */
     SET NOCOUNT ON
     
     IF @pContainer IS NULL
         RETURN 
+        
+    IF @pValue IS NULL
+        SET @pValue = '{null}'    
      
     BEGIN TRY    
 		DECLARE @xmlParam XML = '<param name="'+@pName+'"><![CDATA['+@pValue+']]></param>'       
@@ -686,8 +698,10 @@ BEGIN
         RETURN 
      
     BEGIN TRY    
-		DECLARE @xmlParam XML = '<param name="'+@pName+'"></param>'       
-        SET @xmlParam.modify('insert (sql:variable("@pValue")) into (/*[1])')
+		DECLARE @xmlParam XML = '<param name="'+@pName+'"></param>' 
+        IF @pValue IS NOT NULL      
+            SET @xmlParam.modify('insert (sql:variable("@pValue")) into (/*[1])')
+        -- Setting param value    
         SET @pContainer.modify('insert (sql:variable("@xmlParam")) into (/*[1])')
 	END TRY
 	BEGIN CATCH
@@ -702,7 +716,7 @@ END
 go
 
 
-CREATE FUNCTION splogger._NewEvent (@pLogLevel INT, @pCode INT, @pText NVARCHAR(MAX))
+CREATE FUNCTION _NewEvent (@pLogLevel INT, @pCode INT, @pText NVARCHAR(MAX))
 RETURNS XML
 BEGIN
     /**
@@ -786,12 +800,12 @@ BEGIN
         
         @see   _NewEvent
      */    
-    RETURN splogger._NewEvent ( 3, @pCode, @pText)
+    RETURN dbo._NewEvent ( 3, @pCode, @pText)
 END
 go
 
 
-CREATE PROCEDURE splogger.AddSQLSelectTrace @pLogger XML OUT, @pSelectSQL NVARCHAR(MAX), @pLogLevel INT = 0, @pDbName NVARCHAR(128) = NULL                                    
+CREATE PROCEDURE splogger.AddSQLSelectTrace @pLogger XML OUT, @pSelectSQL NVARCHAR(MAX), @pDescription NVARCHAR(255) = NULL, @pLogLevel INT = 0, @pDbName NVARCHAR(128) = NULL                                    
 AS
 BEGIN
     /**
@@ -821,6 +835,7 @@ BEGIN
         
         @param   pLogger   XML OUT      Targeted logger. Be carefull this parameter SHOULD be passed as OUTPUT                                   
         @param   pSelectSQL   NVARCHAR(MAX)   The SELECT statement to log
+        @param   pDescription   NVARCHAR(255)  (default NULL)   description of the logged value(s)
         @param   pLogLevel   INT (default 0=DEBUG)   The log level of the Event
         @param   pDbName   NVARCHAR(128)  (default=NULL)   current database name (hosting the SP). If NULL, that means SPLogger is dedicated to the current database (created inside) 
         
@@ -848,9 +863,22 @@ BEGIN
     -- The query expression is saved as an <![CDATA[]]> query element's value
     DECLARE @newEvent XML
     IF @pLogLevel = 0
-        SET @newEvent = '<sql-trace><query><![CDATA['+@pSelectSQL+']]></query></sql-trace>'
+        SET @newEvent = '<sql-trace></sql-trace>'
     ELSE 
-        SET @newEvent = '<sql-trace level="'+CONVERT(VARCHAR, @pLogLevel)+'"><query><![CDATA['+@pSelectSQL+']]></query></sql-trace>'
+        SET @newEvent = '<sql-trace level="'+CONVERT(VARCHAR, @pLogLevel)+'"></sql-trace>'
+    
+    -- Adding comment if any
+    DECLARE @valueData XML
+    
+    IF @pDescription IS NOT NULL
+    BEGIN
+        SET @valueData = '<description><![CDATA['+@pDescription+']]></description>'       
+        SET @newEvent.modify('insert (sql:variable("@valueData")) into (/*[1])')
+    END
+    
+    -- Adding the Query
+    SET @valueData = '<query><![CDATA['+@pSelectSQL+']]></query>'       
+    SET @newEvent.modify('insert (sql:variable("@valueData")) into (/*[1])')
     
     -- Checks validity of input parameters
     IF UPPER(SUBSTRING(@pSelectSQL, 1, 7)) <> 'SELECT '
@@ -864,6 +892,8 @@ BEGIN
        
     BEGIN TRY        
         DECLARE @xmlRS XML  
+        DECLARE @xmlRowCount XML
+        
         -- Wrap the SQL query to convert result set to XML
     	DECLARE @sSQL NVARCHAR(max) = N'SET @xmlRS = ('+@pSelectSQL+' FOR XML RAW(''row''), ROOT(''resultset''))'    	
         
@@ -871,12 +901,21 @@ BEGIN
         EXEC sp_executesql @sSQL, N'@xmlRS XML OUTPUT', @xmlRS OUTPUT 
         
         -- Adding the rowcount to the Event
-        DECLARE @rowCount INT = @xmlRS.value('count(/resultset/row)', 'int')  
-        DECLARE @xmlRowCount XML = '<rowcount>'+CONVERT(VARCHAR,@rowCount)+'</rowcount>'       
-        SET @newEvent.modify('insert (sql:variable("@xmlRowCount")) into (/*[1])')
+        DECLARE @rowCount INT = @xmlRS.value('count(/resultset/row)', 'int')
+        IF @rowCount IS NOT NULL 
+        BEGIN
+            SEt @xmlRowCount = '<rowcount>'+CONVERT(VARCHAR,@rowCount)+'</rowcount>'       
+            SET @newEvent.modify('insert (sql:variable("@xmlRowCount")) into (/*[1])')
                
-        -- Adding the result set to the Event
-        SET @newEvent.modify('insert (sql:variable("@xmlRS")) into (/*[1])')
+            -- Adding the result set to the Event
+            SET @newEvent.modify('insert (sql:variable("@xmlRS")) into (/*[1])')
+        END
+        ELSE
+        BEGIN
+            -- No row / empty resultset
+            SET @xmlRowCount = '<rowcount>0</rowcount><resultset />'       
+            SET @newEvent.modify('insert (sql:variable("@xmlRowCount")) into (/*[1])')
+        END            
         
         -- Adding the new Event to the logger
         EXEC splogger.AddEvent @pLogger OUT, @newEvent        
@@ -891,7 +930,7 @@ END
 go
 
 
-CREATE PROCEDURE splogger.AddSQLTableTrace @pLogger XML OUT, @pSQLTableName NVARCHAR(128), @pLogLevel INT = 0, @pRowLimit INT = 0, @pDbName NVARCHAR(128) = NULL
+CREATE PROCEDURE splogger.AddSQLTableTrace @pLogger XML OUT, @pSQLTableName NVARCHAR(128), @pDescription NVARCHAR(255) = NULL, @pLogLevel INT = 0, @pRowLimit INT = 0, @pDbName NVARCHAR(128) = NULL
 AS
 BEGIN
     /**
@@ -920,6 +959,7 @@ BEGIN
         
         @param   pLogger   XML OUT      Targeted logger. Be carefull this parameter SHOULD be passed as OUTPUT                                   
         @param   pSQLTableName   NVARCHAR(128)    
+        @param   pDescription   NVARCHAR(255)  (default NULL)   description of the logged value(s)
         @param   pLogLevel   INT (default 0=DEBUG)   The log level of the Event
         @param   pRowLimit   INT (default to 0=ALL rows)   Limit number of rows to return (TOP(x))
         @param   pDbName   NVARCHAR(128)  (default=NULL)   current database name (hosting the SP). If NULL, that means SPLogger is dedicated to the current database (created inside)         
@@ -937,7 +977,7 @@ BEGIN
         SET @sSQL = 'SELECT TOP('+CONVERT(VARCHAR, @pRowLimit)+') * FROM '+@pSQLTableName
     
     -- Dynamic query execution and initialisation of the @pNewEvent Event
-    EXEC splogger.AddSQLSelectTrace @pLogger OUT, @sSQL, @pLogLevel, @pDbName
+    EXEC splogger.AddSQLSelectTrace @pLogger OUT, @sSQL, @pDescription, @pLogLevel, @pDbName
 END
 go
 
@@ -973,9 +1013,10 @@ BEGIN
         
         @see   _NewEvent
      */    
-    RETURN splogger._NewEvent ( 2, @pCode, @pText)
+    RETURN dbo._NewEvent ( 2, @pCode, @pText)
 END
 go
+
 
 CREATE PROCEDURE splogger.FinishLog @pLogger XML, @pParentLogger XML = NULL OUT, @pLoggerLevelMinToSave INT = -1
 AS
@@ -1205,7 +1246,6 @@ END
 go
 
 
-
 CREATE PROCEDURE splogger.FinishTGroup @pLogger XML OUT
 AS
 BEGIN
@@ -1346,7 +1386,7 @@ BEGIN
         
         @see   _NewEvent
      */    
-    RETURN splogger._NewEvent ( 0, 0, @pText)
+    RETURN dbo._NewEvent ( 0, 0, @pText)
 END
 go
 
@@ -1393,7 +1433,7 @@ BEGIN
     DECLARE @XACT_ABORT VARCHAR(3) = 'OFF';
 	IF ( (16384 & @@OPTIONS) = 16384 ) SET @XACT_ABORT = 'ON';
     
-    DECLARE @xmlEvent XML = splogger._NewEvent ( @pLogLevel, @errNum, @errMsg)
+    DECLARE @xmlEvent XML = dbo._NewEvent ( @pLogLevel, @errNum, @errMsg)
     
     DECLARE @xmlParam XML = '<param name="ERROR_SEVERITY"><![CDATA['+CONVERT(VARCHAR, ERROR_SEVERITY())+']]></param>'       
     SET @xmlEvent.modify('insert (sql:variable("@xmlParam")) into (/*[1])')
@@ -1441,7 +1481,7 @@ BEGIN
         
         @see   _NewEvent
      */    
-    RETURN splogger._NewEvent ( 1, 0, @pText)
+    RETURN dbo._NewEvent ( 1, 0, @pText)
 END
 go
 
@@ -1617,5 +1657,5 @@ END
 go
 
 -- Creating tagging synonym
-CREATE synonym [splogger].[LogHistory 1.3] for [splogger].[LogHistory]
+CREATE synonym [splogger].[LogHistory 1.4] for [splogger].[LogHistory]
 GO

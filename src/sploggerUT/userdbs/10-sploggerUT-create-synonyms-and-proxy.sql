@@ -31,7 +31,26 @@
 USE [<USER_DB, NVARCHAR, >]
 GO
 
+-- Create database roles
+CREATE ROLE [sploggerUT_user] AUTHORIZATION [<USER_SCHEMA_OWNER, NVARCHAR, dbo>]
+GO
+
+-- UT role can use Logger proxies
+EXEC sp_addrolemember N'splogger_user', N'sploggerUT_user'
+GO
+
 CREATE SCHEMA [<USER_SCHEMA, NVARCHAR, sploggerUT>] AUTHORIZATION [<USER_SCHEMA_OWNER, NVARCHAR, dbo>]
+GO
+
+-- Grant rights execute for [splogger_user] (caller) role 
+-- This is used to allow Proxies
+GRANT EXECUTE ON SCHEMA::[<USER_SCHEMA, NVARCHAR, sploggerUT>] TO [sploggerUT_user]
+GO
+
+--
+-- Create synonyms
+--
+CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[UnitTestHistory] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[UnitTestHistory]
 GO
 
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[AssertEquals] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[AssertEquals]
@@ -48,7 +67,7 @@ GO
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[SetDateTimeValue] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[SetDateTimeValue]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[SetDateValue] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[SetDateValue]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[SetFloatValue] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[SetFloatValue]
-CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[SetDateIntValue] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[SetDateIntValue]
+CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[SetIntValue] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[SetIntValue]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[SetNVarcharValue] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[SetNVarcharValue]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, sploggerUT>].[SetXmlValue] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[sploggerUT].[SetXmlValue]
 GO

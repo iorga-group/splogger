@@ -19,21 +19,15 @@
  
 	=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-	UPGRADING FROM SPLogger 1.0 to 1.1 (for each user databases)
-
-	=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
-
 	Warning ! Before running this script you SHOULD remplace all the Template parameters :
  
  		<USER_DB, NVARCHAR, > : User database name where to create user side SPLogger schema and synonyms
-		<USER_SCHEMA, NVARCHAR, splogger> : User side SPLogger schema
-		<SPLOGGER_DB, NVARCHAR, SPLogger> : SPLogger dedicated database
+		<CLIENT_UT_USER,,> : Database user to use as a SPLogger user (standard)
 
-*/
+ */
 
 USE [<USER_DB, NVARCHAR, >]
 GO
 
-CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[StartTGroup] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[StartTGroup]
-CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[FinishTGroup] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[FinishTGroup]
-
+EXEC sp_addrolemember N'sploggerUT_user', N'<CLIENT_UT_USER,,>'
+GO

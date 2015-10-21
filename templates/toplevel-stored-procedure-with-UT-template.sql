@@ -30,7 +30,7 @@ BEGIN
 
 	-- Initialisation du Log
     DECLARE @logEvent XML
-	DECLARE @logger XML = splogger.StartLog( null, '<ProcedureName, sysname,>', @pLogLevel, '<Description,,>')
+	DECLARE @logger XML = splogger.StartLog( @pUTest, '<ProcedureName, sysname,>', @pLogLevel, '<Description,,>')
 		-- If needed: EXEC splogger.SetExpectedMaxDuration @logger OUT, -1
 		EXEC splogger.AddParam @logger OUT, '@tranCount', @tranCount
 		EXEC splogger.AddParam @logger OUT, '<@Param1, sysname, @p1>', <@Param1, sysname, @p1>

@@ -16,7 +16,14 @@
     along with this program.  If not, see <http://www.gnu.org/licenses/>.
 
 	Contact Email : fprevost@iorga.com
- */
+
+	=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
+
+	Warning ! Before running this script you SHOULD verify that you have select the SPLogger database
+*/
+
+USE [SPLogger]
+GO
 
 if exists (select 1
           from sysobjects
@@ -1540,7 +1547,10 @@ BEGIN
         EXEC sp_executesql @sSQL, N'@xmlRS XML OUTPUT', @xmlRS OUTPUT 
         
         -- Adding the rowcount to the Event
-        DECLARE @rowCount INT = @xmlRS.value('count(/resultset/row)', 'int')  
+        DECLARE @rowCount INT = @xmlRS.value('count(/resultset/row)', 'int') 
+        IF @rowCount IS NULL
+            SET @rowCount = 0
+            
         SET @newUTValue.modify('replace value of (/*[1]/@rowcount) with (sql:variable("@rowCount"))')   
                
         -- Adding the result set to the Event
@@ -1997,8 +2007,7 @@ BEGIN
 END
 go
 
-
 -- Creating tagging synonym
-CREATE synonym [sploggerUT].[UnitTestHistory 1.3] for [sploggerUT].[UnitTestHistory]
+CREATE synonym [sploggerUT].[UnitTestHistory 1.4] for [sploggerUT].[UnitTestHistory]
 GO
 
