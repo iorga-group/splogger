@@ -13,12 +13,13 @@ First of all, SPLogger is a set of procedures and functions used to logging Micr
 But it's also a set of procedures and functions that allows tracing/debugging T-SQL batches.  
 
 And SPLogger:
-- Works on SQLServer 2008 and above
-- Don't need CLR (Amazon RDS compatible)
+- Works on SQLServer 2008 and above (not tested on 2005)
+- Don't need CLR assembly (Amazon RDS compatible)
 - 100% T-SQL code
-- Logs are stored in a dedicated database table shareable across user's databases
+- Logs and Unit Tests are stored in a dedicated database. 
+- Access rights are based on dedicated SQL database roles.
  
-And since release 1.3, SPLogger include **SPLoggerUT** dedicated to **Unit Testing** of stored procedure based on SPLogger. 
+And since release 1.3, SPLogger include **SPLoggerUT** dedicated to **Unit Testing** of stored procedures based on SPLogger. 
  
 ## How does it work ?
 To be able to survive to a rollback event raised during SQL execution, SPLogger use **XML datastructure** to store runtime events/trace logged by the developer.  
@@ -48,26 +49,43 @@ The logs are saved inside an XML column in a dedicated table. That allows XSLT t
 
 # How to install SPLogger ?
 
+**All scripts should be execute under a database connection allowed to create database objects.**
+
 ## From scratch
 SPLogger can be installed in its own database or in an user database without any risk cause it uses its own SQL schema `splogger`.  
 
-If you decide to use a **dedicated database** (SPLogger for example), you have to create it before continuing and you shoud be sure to select this database before running the following SQL scripts.  
+If you use (prefered solution) a **dedicated database** (SPLogger for example), you have to create it before continuing and you shoud be sure to select this database before running the following SQL scripts.  
 
-If you decide to use an **existing database** (in case of RDS for example), you shoud be sure to select this database before running the following SQL scripts.  
+If you decide to use an **existing database** (in case of Amazon RDS for example), you shoud be sure to select this database before running the following SQL scripts.  
 
-So, installing SPLogger is as simple as execute the following SQL scripts in order :
-  - Create `splogger` SQL schema [10-splogger-create-schema](./src/splogger/10-splogger-create-schema.sql)
-  - Create all SPLogger SQL objects [20-splogger-create-dbobjects](./src/splogger/20-splogger-create-dbobjects.sql)
-  - if needed, create SPLogger Role and set grants to this role [30-splogger-role-grants](./src/splogger/30-splogger-role-grants.sql)
-  - if needed (use of a dedicated DB for SPLogger), create synonyms to SPLogger objects to a user defined schema on its own DB [40-splogger-create-synonyms](./src/splogger/40-splogger-create-synonyms.sql)
+### SPLogger's database
+Installing SPLogger main database is as simple as execute the following SQL scripts in order :
+  - Create `splogger` schema and roles ([see] (./src/splogger/10-splogger-create-schema.sql))
+  - Create SPLogger SQL objects ([see](./src/splogger/20-splogger-create-dbobjects.sql))
+  - For each user connections, create a SPLogger database's user and link it to the database role ([see](./src/splogger/30-splogger-role-grants.sql))
 
-If you want to use Unit Test system, you should also execute the following SQL scripts in order :
-  - Create `sploggerUT` SQL schema [10-sploggerUT-create-schema](./src/sploggerUT/10-sploggerUT-create-schema.sql)
-  - Create all SPLogger SQL objects [20-sploggerUT-create-dbobjects](./src/sploggerUT/20-sploggerUT-create-dbobjects.sql)
-  - if needed, set grants to this role [30-sploggerUT-role-grants](./src/sploggerUT/30-sploggerUT-role-grants.sql)
-  - if needed (use of a dedicated DB for SPLogger), create synonyms to SPLoggerUT objects to a user defined schema on its own DB [40-sploggerUT-create-synonyms](./src/sploggerUT/40-sploggerUT-create-synonyms.sql)
+If you plan to use Unit Test system, you should also execute the following SQL scripts in order :
+  - Create `sploggerUT` schema and roles ([see] (./src/sploggerUT/10-sploggerUT-create-schema.sql))
+  - Create SPLogger UT SQL objects ([see](./src/sploggerUT/20-sploggerUT-create-dbobjects.sql))
+  - For each user connections, create a SPLogger database's user and link it to the database role ([see](./src/sploggerUT/30-sploggerUT-role-grants.sql))
+   
+Note: As Unit Test system need Log Sustem to work, the `EXECUTE` right on `splogger` schema is automatically granted to `sploggerUT_user` role.
 
-  - Run the SPLogger's tests [99-splogger-and-sploggerUT-tests](./src/99-splogger-and-sploggerUT-tests.sql)
+### SPLogger in user's databases
+To use SPLogger (and SPlogger-UT), you should create some SQL objects (schema, synonyms, role and proxy SPs) into each user's databases. 
+
+So, to enable access to SPLogger, you have to execute the following SQL scripts in order :
+  - Create schema, role, synonyms ([see](./src/splogger/users-dbs/10-splogger-userdb-create-synonyms.sql))
+  - Create proxy SPs ([see](./src/splogger/users-dbs/20-splogger-userdb-create-proxies.sql))
+  - Add the `splogger_user` role to user ([see](./src/splogger/users-dbs/30-splogger-userdb-user-to-role.sql))
+  - To test installation, you can, logged in through an account with `splogger_user` role, run the Log Tests ([see](./src/splogger/users-dbs/99-splogger-tests.sql))
+
+And if you plan to use Unit Test system, you should also execute the following SQL scripts in order :
+  - Create schema, role, synonyms and proxy SPs ([see](./src/sploggerUT/10-sploggerUT-create-synonyms-and-proxy.sql))
+  - Add the `sploggerUT_user` role to user ([see](./src/sploggerUT/users-dbs/20-splogger-userdb-user-to-role.sql))
+  - To test installation, you can, logged in through an account with `sploggerUT_user` role, run the Unit Testing system Tests ([see](./src/sploggerUT/users-dbs/99-sploggerUT-tests.sql))
+
+Finally, you can, logged in through an account with `sploggerUT_user` role, run the global SPLogger tests ([see](./src/99-splogger-and-sploggerUT-tests.sql))
 
 ## Upgrading
 
@@ -90,6 +108,8 @@ It's possible to prepare stored procedure to be used as a main or a sub-routine 
 Finally, you can pass the logger as output parameter to any stored procedure and use it to log events without creating a sub-logger (good for small procedure).
 
 To get an running sample, you can have a look at [SPLogger and SPLogger-UT Tests](./src/99-splogger-and-sploggerUT-tests.sql)
+
+TODO improve doc
 
 # How to use SPLogger-UT ?
 
