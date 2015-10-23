@@ -23,7 +23,7 @@
 
  */
 
-USE [SPLogger>]
+USE [SPLogger]
 GO
  
 if exists (select 1
@@ -1018,7 +1018,7 @@ END
 go
 
 
-CREATE PROCEDURE splogger.FinishLog @pLogger XML, @pParentLogger XML = NULL OUT, @pLoggerLevelMinToSave INT = -1
+CREATE PROCEDURE splogger.FinishLog @pLogger XML, @pParentLogger XML = NULL OUT, @pAlwaysSave BIT = 1, @pDbName NVARCHAR(128) = NULL
 AS
 BEGIN
     /**
@@ -1047,7 +1047,8 @@ BEGIN
         
         @param   pLogger   XML   Logger to finalise
         @param   pParentLogger   XML OUT   (default to NULL)  Parent logger if any. Be carefull this parameter SHOULD be passed as OUTPUT
-        @param   pLoggerLevelMinToSave   INT   (default -1=No level minimum)   Minimum log level to be reached by the logger to be save if top-level logger.
+        @param   pDbName   NVARCHAR(128) (default to DB_NAME())  User database name (hosting the proxy SP). If NULL, that means SPLogger is dedicated to the current database (all schema objects are created inside user database) 
+        @param   pAlwaysSave   BIT   (default 1)   If to level looger, should the log be always save in database (default), or only if it reached the level log defined. "false" is usefull for interactive calls, "true" is usefull for planned batches
         
         @return   ...   
         
@@ -1093,8 +1094,8 @@ BEGIN
         
         -- Checks if logging is disabled (interactive call - SSMS)
         SET @levelMax = @pLogger.value('(/*[1]/@level_max)', 'INT')                    
-        DECLARE @logLevelFilter INT = splogger.GetRunningLevel(@pLogger)         
-        IF @logLevelFilter = -1
+        DECLARE @runningLogLevel INT = splogger.GetRunningLevel(@pLogger)         
+        IF @runningLogLevel = -1
         BEGIN
             IF @pParentLogger IS NULL
                 RETURN 0
@@ -1139,8 +1140,8 @@ BEGIN
         IF @pParentLogger IS NULL
         BEGIN
             -- This is a main log (Top level one)            
-            -- Check if the reached log level is below the logger log level defined
-            IF @levelMax < @pLoggerLevelMinToSave
+            -- Check if we save only if reached level is above or equals the running level
+            IF @pAlwaysSave = 0 AND @runningLogLevel < @levelMax
                 RETURN 0
         
             -- Top level logger finalisation
@@ -1160,7 +1161,7 @@ BEGIN
             DECLARE @taskKey NVARCHAR(128) = @pLogger.value('(/*[1]/@task_key)', 'NVARCHAR(128)')         
         
             INSERT INTO splogger.LogHistory( DbName, TaskKey, StartedAt, EndedAt, DurationInSeconds, EventsMaxLevel, LogDetail, WarnExpectedMaxDuration )
-                VALUES ( DB_NAME(), @taskKey, @startTime, @endDate, DATEDIFF( SECOND, @startTime, @endDate), @levelMax, @pLogger, @WarnExpectedMaxDuration )
+                VALUES ( ISNULL(@pDbName, DB_NAME()), @taskKey, @startTime, @endDate, DATEDIFF( SECOND, @startTime, @endDate), @levelMax, @pLogger, @WarnExpectedMaxDuration )
                             
             IF @levelMax > 2
                 RETURN -1 * @@IDENTITY        
@@ -1182,17 +1183,11 @@ BEGIN
                     SET @pParentLogger.modify('replace value of (/*[1]/@level_max) with (sql:variable("@levelMax"))')
         
                 -- Checks if the current logger log level is the same as its parent one
-                IF @logLevelFilter = @containerLevel
+                IF @runningLogLevel = @containerLevel
                     SET @pLogger.modify('delete /*[1]/@level')
             
                 -- In case of a sub-logger, no need for sub-start time
-                SET @pLogger.modify('delete /*[1]/@start_time')    
-            
-                -- In case of a sub-logger, 
-                -- if the log level reached by it, is above the minimal log level to save,
-                -- just the sub-logger element is inserted. All its details are removed.
-                IF @levelMax < @pLoggerLevelMinToSave
-                    SET @pLogger.modify('delete /*[1]/event[*]')
+                SET @pLogger.modify('delete /*[1]/@start_time')                                
                         
                 -- Auto-detection system for timed-group support - Remove for ended log
                 IF @pParentLogger.exist('(/*[1]/@container)') = 1
@@ -1656,6 +1651,10 @@ BEGIN
 END
 go
 
+-- Grant update right to admin
+GRANT UPDATE ON splogger.LogHistory(VerifiedOn) TO [splogger_admin]
+GO
+
 -- Creating tagging synonym
-CREATE synonym [splogger].[LogHistory 1.4] for [splogger].[LogHistory]
+CREATE synonym [splogger].[LogHistory 1.4.1] for [splogger].[LogHistory]
 GO

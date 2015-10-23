@@ -48,9 +48,9 @@ go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._AssertENE')
+          where  id = object_id('_AssertENE')
           and type in ('P','PC'))
-   drop procedure sploggerUT._AssertENE
+   drop procedure _AssertENE
 go
 
 if exists (select 1
@@ -90,9 +90,9 @@ go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._SetValue')
+          where  id = object_id('_SetValue')
           and type in ('P','PC'))
-   drop procedure sploggerUT._SetValue
+   drop procedure _SetValue
 go
 
 if exists (select 1
@@ -139,58 +139,58 @@ go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._AddAssertResult')
+          where  id = object_id('_AddAssertResult')
           and type in ('P','PC'))
-   drop procedure sploggerUT._AddAssertResult
+   drop procedure _AddAssertResult
 go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._ComputeGetValue')
+          where  id = object_id('_ComputeGetValue')
           and type in ('P','PC'))
-   drop procedure sploggerUT._ComputeGetValue
+   drop procedure _ComputeGetValue
 go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._GetDateTimeValue')
+          where  id = object_id('_GetDateTimeValue')
           and type in ('IF', 'FN', 'TF'))
-   drop function sploggerUT._GetDateTimeValue
+   drop function _GetDateTimeValue
 go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._GetDateValue')
+          where  id = object_id('_GetDateValue')
           and type in ('IF', 'FN', 'TF'))
-   drop function sploggerUT._GetDateValue
+   drop function _GetDateValue
 go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._GetFloatValue')
+          where  id = object_id('_GetFloatValue')
           and type in ('IF', 'FN', 'TF'))
-   drop function sploggerUT._GetFloatValue
+   drop function _GetFloatValue
 go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._GetIntValue')
+          where  id = object_id('_GetIntValue')
           and type in ('IF', 'FN', 'TF'))
-   drop function sploggerUT._GetIntValue
+   drop function _GetIntValue
 go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._GetNVarcharValue')
+          where  id = object_id('_GetNVarcharValue')
           and type in ('IF', 'FN', 'TF'))
-   drop function sploggerUT._GetNVarcharValue
+   drop function _GetNVarcharValue
 go
 
 if exists (select 1
           from sysobjects
-          where  id = object_id('sploggerUT._ParseExpr')
+          where  id = object_id('_ParseExpr')
           and type in ('P','PC'))
-   drop procedure sploggerUT._ParseExpr
+   drop procedure _ParseExpr
 go
 
 if exists (select 1
@@ -243,7 +243,7 @@ RunAt DESC
 go
 
 
-create procedure sploggerUT._ParseExpr @pUTest XML OUT, @pExpression NVARCHAR(MAX), @pParsedExpression NVARCHAR(MAX) OUT, @pFillValues BIT = 0
+create procedure _ParseExpr @pUTest XML OUT, @pExpression NVARCHAR(MAX), @pParsedExpression NVARCHAR(MAX) OUT, @pFillValues BIT = 0
 AS
 BEGIN
     /**
@@ -270,10 +270,10 @@ BEGIN
         = Internal use only. Use suffixed procedures
         =
         
-        Prepared an expression by replacing access to value templates by the correct "splogger._GetxxxValue" call.
+        Prepared an expression by replacing access to value templates by the correct "dbo._GetxxxValue" call.
         
         @param   pUTest   XML OUT  A reference to the Unit Test
-        @param   pExpression NVARCHAR(MAX)   Input expression to be parsed to replace templates by "splogger._GetxxxValue" calls
+        @param   pExpression NVARCHAR(MAX)   Input expression to be parsed to replace templates by "dbo._GetxxxValue" calls
         @param   pParsedExpression   NVARCHAR(MAX) OUT   Expression where all templates have been replaced and ready to by executed
         @param   pFillValues BIT (default=0)   If equals to 1 (true), the templates are not replace but their evaluated value are inserted in them. Allowing comprehension of the failed status.
         
@@ -338,12 +338,12 @@ BEGIN
         -- Generate value access call
         IF @pFillValues = 0
         BEGIN			
-		    SET @pParsedExpression = @pParsedExpression + 'sploggerUT._Get'+@valueDataType+'Value(@pUTest, '''+@utKey+''')'                        
+		    SET @pParsedExpression = @pParsedExpression + 'dbo._Get'+@valueDataType+'Value(@pUTest, '''+@utKey+''')'                        
             SET @pUTest.modify('replace value of (/unit-test[1]/run-values/run-value[@key=sql:variable("@rootUtKey")]/@checked)[1] with (1)') 
         END
         ELSE
         BEGIN
-            SET @pParsedExpression = @pParsedExpression + '{{'+@utKey+':'+@valueDataType+'='+sploggerUT._GetNVarcharValue(@pUTest, @utKey)+'}}'
+            SET @pParsedExpression = @pParsedExpression + '{{'+@utKey+':'+@valueDataType+'='+dbo._GetNVarcharValue(@pUTest, @utKey)+'}}'
         END
 
 		-- Search for the next token
@@ -413,7 +413,7 @@ BEGIN
     -- Evaluate the boolean expression
     BEGIN TRY
         -- Convert input expression to executable expression
-        EXEC sploggerUT._ParseExpr @pUTest OUT, @pExpressionToVerify, @parsedExpression OUT
+        EXEC dbo._ParseExpr @pUTest OUT, @pExpressionToVerify, @parsedExpression OUT
         -- SQL execution of the prepared expression
         DECLARE @sSQL NVARCHAR(max) = N'IF ('+@parsedExpression+') SET @expressionResult = 1 ELSE SET @expressionResult = 0'    	                
         EXEC sp_executesql @sSQL, N'@expressionResult BIT OUTPUT, @pUTest XML', @expressionResult OUTPUT, @pUTest     
@@ -423,7 +423,7 @@ BEGIN
         SET @expressionResult = 0
         SET @expressionInvalid = 1
         -- TAssertion failed. Replace bindings by value to help comprehension of the expression
-        EXEC sploggerUT._ParseExpr @pUTest OUT, @pExpressionToVerify, @expressionWithValue OUT, 1
+        EXEC dbo._ParseExpr @pUTest OUT, @pExpressionToVerify, @expressionWithValue OUT, 1
         -- Looging SQL error
         SET @assertRes = splogger.NewEvent_For_SqlError(3)
             EXEC splogger.AddParam @assertRes OUT, 'sploggerUT.AssertTrue:expression', @pExpressionToVerify
@@ -442,7 +442,7 @@ BEGIN
     BEGIN 
         -- TAssertion failed. Replace bindings by value to help comprehension of the expression
         IF @expressionWithValue IS NULL
-            EXEC sploggerUT._ParseExpr @pUTest OUT, @pExpressionToVerify, @expressionWithValue OUT, 1
+            EXEC dbo._ParseExpr @pUTest OUT, @pExpressionToVerify, @expressionWithValue OUT, 1
         
         -- Create assertion tag with complementaty informations on failure
         IF @expressionInvalid = 1
@@ -460,7 +460,7 @@ END
 go
 
 
-CREATE PROCEDURE sploggerUT._SetValue @pUTest XML OUT, @pUTKey NVARCHAR(128), @pDescription NVARCHAR(255), @pDataType NVARCHAR(20), @pRunValue NVARCHAR(MAX)
+CREATE PROCEDURE _SetValue @pUTest XML OUT, @pUTKey NVARCHAR(128), @pDescription NVARCHAR(255), @pDataType NVARCHAR(20), @pRunValue NVARCHAR(MAX)
 AS
 BEGIN
     /**
@@ -505,13 +505,13 @@ BEGIN
     DECLARE @inTranChecked INT = @pUTest.value('(/unit-test[1]/@in_tran_checked)', 'INT') 
     IF @inTranChecked = 0
     BEGIN
-        RAISERROR( N'sploggerUT._SetValue - The cheching for Unit Test to run in a top level transaction haven''t be done.', 16, 0 )
+        RAISERROR( N'The cheching for Unit Test to run in a top level transaction haven''t be done.', 16, 0 )
         RETURN
     END
         
     IF CHARINDEX('#', @pUTKey) > 0
     BEGIN
-        RAISERROR( N'sploggerUT._SetValue - Hash sign (#) is not allowed in key value. Will conflict with "AssertTrue" functionnality.', 16, 0 )
+        RAISERROR( N'Hash sign (#) is not allowed in key value. Will conflict with "AssertTrue" functionnality.', 16, 0 )
         RETURN
     END     
         
@@ -529,7 +529,7 @@ END
 go
 
 
-create procedure sploggerUT._AddAssertResult @pUTest XML OUT, @pIsFailed BIT, @pUTKey NVARCHAR(128), @pType NVARCHAR(2), @pFailedText NVARCHAR(MAX) = NULL, @pRunValue NVARCHAR(MAX), @pExpectedValue NVARCHAR(MAX)
+create procedure _AddAssertResult @pUTest XML OUT, @pIsFailed BIT, @pUTKey NVARCHAR(128), @pType NVARCHAR(2), @pFailedText NVARCHAR(MAX) = NULL, @pRunValue NVARCHAR(MAX), @pExpectedValue NVARCHAR(MAX)
 AS
 BEGIN
     /**
@@ -621,7 +621,7 @@ END
 go
 
 
-CREATE PROCEDURE sploggerUT._ComputeGetValue @pUTest XML, @pUTKeyExpr NVARCHAR(255), @pRuntimeValue NVARCHAR(MAX) OUT
+CREATE PROCEDURE _ComputeGetValue @pUTest XML, @pUTKeyExpr NVARCHAR(255), @pRuntimeValue NVARCHAR(MAX) OUT
 AS
 BEGIN
     /**
@@ -748,7 +748,7 @@ END
 go
 
 
-CREATE PROCEDURE sploggerUT._AssertENE @pUTest XML OUT, @pUTKeyExpr NVARCHAR(255), @pTestIsEquals BIT, @pExpectedValue NVARCHAR(MAX), @pRunUtKey NVARCHAR(128) = NULL
+CREATE PROCEDURE _AssertENE @pUTest XML OUT, @pUTKeyExpr NVARCHAR(255), @pTestIsEquals BIT, @pExpectedValue NVARCHAR(MAX), @pRunUtKey NVARCHAR(128) = NULL
 AS
 BEGIN
     /**
@@ -842,7 +842,7 @@ BEGIN
     
 	BEGIN TRY		    
         -- Reading value as String
-        EXEC sploggerUT._ComputeGetValue @pUTest, @utKeyCompl, @runtimeValue OUT
+        EXEC dbo._ComputeGetValue @pUTest, @utKeyCompl, @runtimeValue OUT
     
         -- Do internal checks...
         IF CHARINDEX('sploggerUT:##', @runtimeValue) > 0
@@ -850,7 +850,7 @@ BEGIN
             -- Missing value or CAST error. The UT run has not retrieved a value for @pUTKeyExpr
             -- The value returned is the error message
     		-- Assertion => Failed
-            EXEC sploggerUT._AddAssertResult @pUTest OUT, 1, @utKeyCompl, @runtimeValue, NULL, @pExpectedValue
+            EXEC dbo._AddAssertResult @pUTest OUT, 1, @utKeyCompl, @runtimeValue, NULL, @pExpectedValue
             GOTO ASSERTION_BEFORE_EXIT
         END
 
@@ -903,9 +903,9 @@ BEGIN
         SET @errMsg = @errMsg + ' (SQLCode='+CONVERT(VARCHAR(20), ERROR_NUMBER())+')'
         
         IF @pTestIsEquals = 1
-            EXEC sploggerUT._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'eq', @errMsg, @runtimeValue, @pExpectedValue
+            EXEC dbo._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'eq', @errMsg, @runtimeValue, @pExpectedValue
         ELSE
-            EXEC sploggerUT._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'ne', @errMsg, @runtimeValue, @pExpectedValue
+            EXEC dbo._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'ne', @errMsg, @runtimeValue, @pExpectedValue
             
         GOTO ASSERTION_FIN
 	END CATCH
@@ -916,10 +916,10 @@ ASSERTION_NOT_EQUAL:
 
     IF @pTestIsEquals = 1
     	-- Assertion => Failed
-        EXEC sploggerUT._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'eq', N'The run value DOES NOT match the expected value.', @runtimeValue, @pExpectedValue
+        EXEC dbo._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'eq', N'The run value DOES NOT match the expected value.', @runtimeValue, @pExpectedValue
     ELSE
         -- Assertion => OK	
-        EXEC sploggerUT._AddAssertResult @pUTest OUT, 0, @utKeyCompl, N'ne', null, @runtimeValue, @pExpectedValue             
+        EXEC dbo._AddAssertResult @pUTest OUT, 0, @utKeyCompl, N'ne', null, @runtimeValue, @pExpectedValue             
         
     GOTO ASSERTION_FIN
         
@@ -927,10 +927,10 @@ ASSERTION_EQUAL:
 
     IF @pTestIsEquals = 1
     	-- Assertion => OK	
-        EXEC sploggerUT._AddAssertResult @pUTest OUT, 0, @utKeyCompl, N'eq', null, @runtimeValue, @pExpectedValue             
+        EXEC dbo._AddAssertResult @pUTest OUT, 0, @utKeyCompl, N'eq', null, @runtimeValue, @pExpectedValue             
     ELSE
         -- Assertion => Failed
-        EXEC sploggerUT._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'ne', N'The run value DOES match the expected value.', @runtimeValue, @pExpectedValue
+        EXEC dbo._AddAssertResult @pUTest OUT, 1, @utKeyCompl, N'ne', N'The run value DOES match the expected value.', @runtimeValue, @pExpectedValue
     
 ASSERTION_FIN:
   
@@ -942,7 +942,7 @@ ASSERTION_BEFORE_EXIT:
     IF @pRunUtKey IS NOT NULL
     BEGIN
         DECLARE @description NVARCHAR(255) = 'splogger:run-time value of "'+@pUTKeyExpr+'"'
-        EXEC sploggerUT._SetValue @pUTest OUT, @pRunUtKey, @description, @declaredDataType, @runtimeValue                
+        EXEC dbo._SetValue @pUTest OUT, @pRunUtKey, @description, @declaredDataType, @runtimeValue                
     END
 END
 go
@@ -993,7 +993,7 @@ BEGIN
         
         @see   _AssertENE
      */ 
-    EXEC sploggerUT._AssertENE @pUTest OUT, @pUTKeyExpr, 1, @pExpectedValue, @pRunUtKey
+    EXEC dbo._AssertENE @pUTest OUT, @pUTKeyExpr, 1, @pExpectedValue, @pRunUtKey
 END
 go
 
@@ -1093,7 +1093,7 @@ BEGIN
         
         @see   _AssertENE
      */ 
-    EXEC sploggerUT._AssertENE @pUTest OUT, @pUTKeyExpr, 0, @pExpectedValue, @pRunUtKey
+    EXEC dbo._AssertENE @pUTest OUT, @pUTKeyExpr, 0, @pExpectedValue, @pRunUtKey
 END
 go
 
@@ -1153,7 +1153,7 @@ END
 go
 
 
-CREATE PROCEDURE sploggerUT.SaveUnitTest @pUTest XML
+CREATE PROCEDURE sploggerUT.SaveUnitTest @pUTest XML, @pDbName NVARCHAR(128) = NULL
 AS
 BEGIN
     /**
@@ -1180,6 +1180,7 @@ BEGIN
         Save the result of the Unit Test into the dedicated database table
         
         @param   pUTest   XML   Unit test to save
+        @param   pDbName   NVARCHAR(128) (default to DB_NAME())  User database name (hosting the proxy SP). If NULL, that means SPLogger is dedicated to the current database (all schema objects are created inside user database) 
         
         @see   StartUnitTest
      */
@@ -1242,7 +1243,7 @@ BEGIN
         DECLARE @UTKey NVARCHAR(128) = @pUTest.value('(/unit-test[1]/@utkey)', 'NVARCHAR(128)')         
         
         INSERT INTO sploggerUT.UnittestHistory( DbName, UnitTestKey, RunAt, IsSuccessfull, UnitTestDetail )
-            VALUES ( DB_NAME(), @UTKey, @runAt, @isSuccessfull, @pUTest )
+            VALUES ( ISNULL(@pDbName, DB_NAME()), @UTKey, @runAt, @isSuccessfull, @pUTest )
         
         RETURN @@IDENTITY                
     END TRY
@@ -1296,7 +1297,7 @@ BEGIN
         RETURN
     
     DECLARE @valueStr NVARCHAR(25) = CONVERT(NVARCHAR(25), @pRunValue, 126)
-    EXEC sploggerUT._SetValue @pUTest OUT, @pUTKey, @pDescription, 'datetime', @valueStr
+    EXEC dbo._SetValue @pUTest OUT, @pUTKey, @pDescription, 'datetime', @valueStr
 END
 go
 
@@ -1340,7 +1341,7 @@ BEGIN
         RETURN
     
     DECLARE @valueStr NVARCHAR(25) = CONVERT(NVARCHAR(25), @pRunValue, 120)
-    EXEC sploggerUT._SetValue @pUTest OUT, @pUTKey, @pDescription, 'date', @valueStr
+    EXEC dbo._SetValue @pUTest OUT, @pUTKey, @pDescription, 'date', @valueStr
 END
 go
 
@@ -1383,7 +1384,7 @@ BEGIN
     IF @pUTest IS NULL OR splogger.GetRunningLevel(@pUTest) <> -8
         RETURN
     
-    EXEC sploggerUT._SetValue @pUTest OUT, @pUTKey, @pDescription, 'float', @pRunValue
+    EXEC dbo._SetValue @pUTest OUT, @pUTKey, @pDescription, 'float', @pRunValue
 END
 go
 
@@ -1426,7 +1427,7 @@ BEGIN
     IF @pUTest IS NULL OR splogger.GetRunningLevel(@pUTest) <> -8
         RETURN
     
-    EXEC sploggerUT._SetValue @pUTest OUT, @pUTKey, @pDescription, 'int', @pRunValue
+    EXEC dbo._SetValue @pUTest OUT, @pUTKey, @pDescription, 'int', @pRunValue
 END
 go
 
@@ -1469,7 +1470,7 @@ BEGIN
     IF @pUTest IS NULL OR splogger.GetRunningLevel(@pUTest) <> -8
         RETURN
     
-    EXEC sploggerUT._SetValue @pUTest OUT, @pUTKey, @pDescription, 'nvarchar', @pRunValue
+    EXEC dbo._SetValue @pUTest OUT, @pUTKey, @pDescription, 'nvarchar', @pRunValue
 END
 go
 
@@ -1612,7 +1613,7 @@ BEGIN
     DECLARE @inTranChecked INT = @pUTest.value('(/unit-test[1]/@in_tran_checked)', 'INT') 
     IF @inTranChecked = 0
     BEGIN
-        RAISERROR( N'sploggerUT._SetOrCheckValue - The cheching for Unit Test to run in a top level transaction haven''t be done.', 16, 0 )
+        RAISERROR( N'The cheching for Unit Test to run in a top level transaction haven''t be done.', 16, 0 )
         RETURN
     END
         
@@ -1678,7 +1679,7 @@ end
 go
 
 
-CREATE FUNCTION sploggerUT._GetDateTimeValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
+CREATE FUNCTION _GetDateTimeValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
 RETURNS DATETIME
 AS
 BEGIN
@@ -1723,12 +1724,12 @@ BEGIN
         @return   DATETIME
         
      */
-    RETURN CONVERT(DATETIME, sploggerUT._GetNVarcharValue(@pUTest, @pUTKeyExpr), 126)    
+    RETURN CONVERT(DATETIME, dbo._GetNVarcharValue(@pUTest, @pUTKeyExpr), 126)    
 END
 go
 
 
-CREATE FUNCTION sploggerUT._GetDateValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
+CREATE FUNCTION _GetDateValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
 RETURNS DATE
 AS
 BEGIN
@@ -1773,12 +1774,12 @@ BEGIN
         @return   DATE
         
      */
-    RETURN CONVERT(DATE, sploggerUT._GetNVarcharValue(@pUTest, @pUTKeyExpr), 120)    
+    RETURN CONVERT(DATE, dbo._GetNVarcharValue(@pUTest, @pUTKeyExpr), 120)    
 END
 go
 
 
-CREATE FUNCTION sploggerUT._GetFloatValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
+CREATE FUNCTION _GetFloatValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
 RETURNS FLOAT
 AS
 BEGIN
@@ -1823,12 +1824,12 @@ BEGIN
         @return   FLOAT
         
      */
-    RETURN CONVERT(FLOAT, sploggerUT._GetNVarcharValue(@pUTest, @pUTKeyExpr))    
+    RETURN CONVERT(FLOAT, dbo._GetNVarcharValue(@pUTest, @pUTKeyExpr))    
 END
 go
 
 
-CREATE FUNCTION sploggerUT._GetIntValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
+CREATE FUNCTION _GetIntValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
 RETURNS INT
 AS
 BEGIN
@@ -1873,12 +1874,12 @@ BEGIN
         @return   INT
         
      */
-    RETURN CONVERT(INT, sploggerUT._GetNVarcharValue(@pUTest, @pUTKeyExpr))    
+    RETURN CONVERT(INT, dbo._GetNVarcharValue(@pUTest, @pUTKeyExpr))    
 END
 go
 
 
-CREATE FUNCTION sploggerUT._GetNVarcharValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
+CREATE FUNCTION _GetNVarcharValue (@pUTest XML, @pUTKeyExpr NVARCHAR(255))
 RETURNS NVARCHAR(MAX)
 AS
 BEGIN
@@ -2007,7 +2008,8 @@ BEGIN
 END
 go
 
+
 -- Creating tagging synonym
-CREATE synonym [sploggerUT].[UnitTestHistory 1.4] for [sploggerUT].[UnitTestHistory]
+CREATE synonym [sploggerUT].[UnitTestHistory 1.4.1] for [sploggerUT].[UnitTestHistory]
 GO
 

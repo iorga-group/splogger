@@ -57,7 +57,6 @@ CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[NewEvent_Info] FOR [<SPLOGGE
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[NewEvent_For_SqlError] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[NewEvent_For_SqlError]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[NewEvent_Error] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[NewEvent_Error]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[NewEvent_Debug] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[NewEvent_Debug]
-CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[FinishLog] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[FinishLog]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[AddParam] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[AddParam]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[AddParam_DateTime] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[AddParam_DateTime]
 CREATE SYNONYM [<USER_SCHEMA, NVARCHAR, splogger>].[AddParam_Xml] FOR [<SPLOGGER_DB, NVARCHAR, SPLogger>].[splogger].[AddParam_Xml]
