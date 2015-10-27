@@ -564,11 +564,13 @@ BEGIN
      */
     SET NOCOUNT ON
     
-    IF splogger.GetRunningLevel(@pLogger) > 0
-    BEGIN
-        -- Checks if the Logger log level is above DEBUG.
+    -- Null Logger protection (1.4.2)
+    IF @pLogger IS NULL
         RETURN
-    END
+    
+    -- Checks if the Logger log level is above DEBUG.
+    IF splogger.GetRunningLevel(@pLogger) > 0        
+        RETURN
    
     -- Event's initialisation.    
     DECLARE @newEvent XML = '<debug-trace></debug-trace>'       
@@ -845,6 +847,10 @@ BEGIN
      */
     SET NOCOUNT ON
     
+    -- Null Logger protection (1.4.2)
+    IF @pLogger IS NULL
+        RETURN
+    
     IF splogger.GetRunningLevel(@pLogger) > @pLogLevel
     BEGIN
         -- Checks if the Logger log level is above the asked log level for the SQL trace.
@@ -967,6 +973,10 @@ BEGIN
         @see   AddSQLSelectTrace
      */
     SET NOCOUNT ON
+    
+    -- Null Logger protection (1.4.2)
+    IF @pLogger IS NULL
+        RETURN
     
     -- Building the SELECT query for the asked table.
     -- If needed a TOP clause is inserted in the query
@@ -1272,6 +1282,10 @@ BEGIN
         @see StartTGroup
      */
     SET NOCOUNT ON
+    
+    -- Null Logger protection (1.4.2)
+    IF @pLogger IS NULL
+        RETURN
     
     DECLARE @startTime DATETIME = @pLogger.value('(//timed-group[@container])[last()]/@start_ts', 'DATETIME') 
     DECLARE @endDate DATETIME = GETUTCDATE()
@@ -1639,6 +1653,10 @@ BEGIN
      */
     SET NOCOUNT ON
     
+    -- Null Logger protection (1.4.2)
+    IF @pLogger IS NULL
+        RETURN
+    
     -- Adding the new timed-group to the Logger
     DECLARE @tGroup XML = '<timed-group start_ts="'+CONVERT( VARCHAR(25), GETUTCDATE(), 126 )+'" duration="?" container="1"><description><![CDATA['+@pDescription+']]></description></timed-group>'        
     EXEC splogger.AddEvent @pLogger OUT, @tGroup         
@@ -1656,5 +1674,5 @@ GRANT UPDATE ON splogger.LogHistory(VerifiedOn) TO [splogger_admin]
 GO
 
 -- Creating tagging synonym
-CREATE synonym [splogger].[LogHistory 1.4.1] for [splogger].[LogHistory]
+CREATE synonym [splogger].[LogHistory 1.4.2] for [splogger].[LogHistory]
 GO

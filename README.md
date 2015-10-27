@@ -5,7 +5,7 @@ But also **SPLogger-UT** a **Unit Test System** based on It.
 ![SPLogger](./splogger-banner.png "SPLogger")
 # What is SPLogger ?
 
-*SPLogger Release 1.4.1*
+*SPLogger Release 1.4.2*
 
 First of all, SPLogger is a set of procedures and functions used to logging Microsoft SQLServer stored procedures execution...  
 ...that survive to a **rollback** event (if well used).  
